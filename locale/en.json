@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "DeepSeek peak-hours badge",
+    "description": "Shows in the composer toolbar whether the DeepSeek API is in peak or off-peak hours, only when the selected model belongs to a DeepSeek provider."
+  }
+}
