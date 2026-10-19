@@ -21,7 +21,7 @@
 | 倒计时与切换时刻 | 周日 23:11 → `9 小时 49 分钟`、`明天 09:00` | 通过 |
 | provider 判定 | `deepseek-official`、`deepseek-account`、pi-ai 的 `deepseek` → 显示；`xiaomi-token-plan-cn`、`openrouter`、`DeepSeek via OpenRouter` → 隐藏 | 通过 |
 | 安装与激活 | Harness 安装返回 `application: applied`，无警告 | 通过 |
-| 实时槽位注册 | 客户端 Inspect 查询 `conversation.input.left`，存在 occupant `dsh-provider-peak`（order 11，active） | 通过 |
+| 实时槽位注册 | 客户端 Inspect 查询 `conversation.input.left`，存在 occupant `dsh-provider-peak`（active） | 通过 |
 
 ## 发布后验证（2026-10-19）
 
@@ -31,11 +31,12 @@
 | GitHub 安装 | 在 `web` profile 中用插件安装器安装 `https://github.com/moonmoonCL/dsh-provider-peak` | `+ dsh-provider-peak github:moonmoonCL/dsh-provider-peak`，`application: applied` |
 | 安装内容 | 检查 `node_modules/dsh-provider-peak` | `client.js`、`index.js`、`cordis.patch.yml`、`icon.svg`、`locale/`、`docs/`、README、LICENSE 齐全 |
 | profile 记录 | 检查 profile 的 `package.json` 与插件列表 | 依赖为 `github:moonmoonCL/dsh-provider-peak`，插件行 `dsh-provider-peak` 已启用 |
-| 实时注册（GitHub 安装版） | 客户端 Inspect 查询 `conversation.input.left` | occupant 变为 `dsh-provider-peak`，active |
+| 实时注册（GitHub 安装版） | 客户端 Inspect 查询 `conversation.input.left` | occupant `dsh-provider-peak`，active |
+| hover 修复后重装 | 重新从 GitHub 安装 `v1.1.1`，Inspect 查询槽位 | occupant order 变为 12，说明新模块已加载 |
 
 ## 未验证 / 限制
 
-- **视觉未截图**：本环境没有浏览器控制能力，无法目测徽章尺寸、颜色与浅色/深色主题下的对比度；注册与模块加载已由实时 Inspect 确认。
+- **视觉未截图**：本环境没有浏览器控制能力，无法目测徽章尺寸、颜色、hover 底色/浮层与浅色/深色主题下的对比度；注册与模块加载已由实时 Inspect 确认。
 - **未覆盖其他 DSH 版本**：只在 `0.2.0-rc.2` 上验证。
 - **未在干净机器上从零安装**：GitHub 安装是在已有 DSH 安装的 profile 上完成的；`modelDirectories` 等依赖由 Harness 自带。
 
