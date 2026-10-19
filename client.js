@@ -247,6 +247,48 @@ window.__ModuleLoader__.load({
   white-space: nowrap;
   cursor: default;
   user-select: none;
+  transition: background-color 0.12s ease;
+}
+.dsh-provider-peak:hover,
+.dsh-provider-peak:focus-visible,
+.dsh-provider-peak[data-open='true'] {
+  background: color-mix(in srgb, var(--dsw-alias-label-secondary) 9%, transparent);
+}
+.dsh-provider-peak:focus-visible {
+  outline: 2px solid var(--dsw-alias-brand-primary);
+  outline-offset: 1px;
+}
+.dsh-provider-peak__tooltip {
+  position: fixed;
+  z-index: 1200;
+  box-sizing: border-box;
+  width: max-content;
+  max-width: min(360px, calc(100vw - 24px));
+  padding: 10px 12px;
+  border: 0.5px solid var(--dsw-alias-border-l1);
+  border-radius: var(--dsw-radius-md, 8px);
+  background: var(--dsw-alias-bg-overlay);
+  box-shadow: var(--dsw-elevation-prominent, 0 8px 24px rgb(0 0 0 / 0.18));
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 18px;
+  text-align: left;
+  white-space: normal;
+  pointer-events: none;
+}
+.dsh-provider-peak__tipHead {
+  color: var(--dsw-alias-label-primary);
+  font-weight: 600;
+}
+.dsh-provider-peak__tipRow {
+  margin-top: 2px;
+}
+.dsh-provider-peak__tipNotes {
+  margin-top: 8px;
+  padding-top: 7px;
+  border-top: 0.5px solid var(--dsw-alias-border-l1);
+  font-size: 11px;
+  line-height: 16px;
 }
 .dsh-provider-peak__dot {
   flex: none;
@@ -281,7 +323,8 @@ window.__ModuleLoader__.load({
     /**
      * Compact peak/off-peak chip. Model identity comes from the Session's
      * shared model directory; the clock is read locally with a slow tick and
-     * a refresh on tab focus.
+     * a refresh on tab focus. Hovering or focusing the chip opens a positioned
+     * tooltip, and the chip itself gains a hover/focus surface.
      */
     function PeakBadge({ t, modelDirectory }) {
       const state = React.useSyncExternalStore(
@@ -292,6 +335,11 @@ window.__ModuleLoader__.load({
         React.useCallback(() => modelDirectory.getSnapshot(), [modelDirectory]),
       );
       const [now, setNow] = React.useState(() => Date.now());
+      const [open, setOpen] = React.useState(false);
+      const [placement, setPlacement] = React.useState(null);
+      const detailId = React.useId();
+      const chipRef = React.useRef(null);
+
       React.useEffect(() => {
         const refresh = () => setNow(Date.now());
         const timer = setInterval(refresh, TICK_MS);
@@ -305,6 +353,30 @@ window.__ModuleLoader__.load({
         };
       }, []);
 
+      const show = React.useCallback(() => {
+        const chip = chipRef.current;
+        if (chip === null) return;
+        const rect = chip.getBoundingClientRect();
+        const maxWidth = Math.min(360, window.innerWidth - 24);
+        setPlacement({
+          left: Math.max(12, Math.min(rect.left, window.innerWidth - maxWidth - 12)),
+          bottom: window.innerHeight - rect.top + 8,
+        });
+        setOpen(true);
+      }, []);
+      const hide = React.useCallback(() => setOpen(false), []);
+
+      React.useEffect(() => {
+        if (!open) return undefined;
+        const close = () => setOpen(false);
+        window.addEventListener('resize', close);
+        window.addEventListener('scroll', close, true);
+        return () => {
+          window.removeEventListener('resize', close);
+          window.removeEventListener('scroll', close, true);
+        };
+      }, [open]);
+
       const current = state.current;
       const provider = current === null ? null : current.provider;
 
@@ -315,17 +387,21 @@ window.__ModuleLoader__.load({
 
       let chipState;
       let label;
-      let lines;
+      let headline;
+      let rows;
+      let notes;
       if (current === null) {
         chipState = 'unknown';
         label = t('unknown');
-        lines = [`${t('api')} · ${t('state.unknown')}`, t('unknown.detail')];
+        headline = `${t('api')} · ${t('state.unknown')}`;
+        rows = [t('unknown.detail')];
+        notes = [];
       } else {
         const peak = isPeak(now);
         chipState = peak ? 'peak' : 'idle';
         label = t(peak ? 'peak' : 'idle');
-        lines = [
-          `${t('api')} · ${t(peak ? 'state.peak' : 'state.idle')}`,
+        headline = `${t('api')} · ${t(peak ? 'state.peak' : 'state.idle')}`;
+        rows = [
           t('model.line', { model: modelNameOf(state.groups, current) }),
           t(peak ? 'price.peak' : 'price.idle'),
         ];
@@ -333,16 +409,16 @@ window.__ModuleLoader__.load({
         if (target !== null) {
           const gap = describeGap(target - now);
           const when = describeWhen(target, now);
-          lines.push(
+          rows.push(
             t(peak ? 'next.toIdle' : 'next.toPeak', {
               gap: t(gap.key, gap.params),
               when: t(when.key, when.params),
             }),
           );
         }
-        lines.push(t('rules'), t('holidays', { year: HOLIDAY_COVERAGE }));
+        notes = [t('rules'), t('holidays', { year: HOLIDAY_COVERAGE })];
       }
-      const detail = lines.join('\n');
+      const srDetail = [headline, ...rows, ...notes].join('\n');
 
       return h(
         React.Fragment,
@@ -352,18 +428,65 @@ window.__ModuleLoader__.load({
           'span',
           {
             key: 'badge',
+            ref: chipRef,
             className: 'dsh-provider-peak',
             'data-state': chipState,
-            title: detail,
+            'data-open': open ? 'true' : undefined,
+            tabIndex: 0,
+            'aria-describedby': detailId,
+            onMouseEnter: show,
+            onMouseLeave: hide,
+            onFocus: show,
+            onBlur: hide,
+            onKeyDown: (event) => {
+              if (event.key === 'Escape') setOpen(false);
+            },
           },
           h('span', { className: 'dsh-provider-peak__dot', 'aria-hidden': true }),
+          h('span', { className: 'dsh-provider-peak__label' }, label),
           h(
             'span',
-            { className: 'dsh-provider-peak__label', 'aria-hidden': true },
-            label,
+            { id: detailId, className: 'dsh-provider-peak__detail' },
+            srDetail.replace(/\n/g, ' '),
           ),
-          h('span', { className: 'dsh-provider-peak__detail' }, detail.replace(/\n/g, ' ')),
         ),
+        open && placement !== null
+          ? h(
+              'div',
+              {
+                key: 'tooltip',
+                className: 'dsh-provider-peak__tooltip',
+                'aria-hidden': true,
+                style: {
+                  left: `${placement.left}px`,
+                  bottom: `${placement.bottom}px`,
+                },
+              },
+              [
+                h(
+                  'div',
+                  { key: 'head', className: 'dsh-provider-peak__tipHead' },
+                  headline,
+                ),
+                ...rows.map((row, index) =>
+                  h(
+                    'div',
+                    { key: `row-${index}`, className: 'dsh-provider-peak__tipRow' },
+                    row,
+                  ),
+                ),
+                notes.length === 0
+                  ? null
+                  : h(
+                      'div',
+                      { key: 'notes', className: 'dsh-provider-peak__tipNotes' },
+                      notes.map((note, index) =>
+                        h('div', { key: `note-${index}` }, note),
+                      ),
+                    ),
+              ],
+            )
+          : null,
       );
     }
 
@@ -379,7 +502,7 @@ window.__ModuleLoader__.load({
             {
               name: 'conversation.input.left',
               id: 'dsh-provider-peak',
-              order: 11,
+              order: 12,
               locale: NS,
               inject: (sessionId) => ({
                 modelDirectory: ctx.modelDirectories.directoryFor(sessionId).store,

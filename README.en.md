@@ -8,7 +8,7 @@ A DSH (DeepSeek Harness) Web plugin. It renders a compact badge in the session c
 
 - `● Off-peak` (green): off-peak hours, half of the peak rate
 - `● Peak` (amber): peak hours, standard rate
-- Hover for the current model, time until the next switch, the switch instant (Beijing time), the rule, and the holiday-data coverage
+- Hover or keyboard-focus the badge: it highlights and a tooltip opens with the current model, time until the next switch, the switch instant (Beijing time), the rule, and the holiday-data coverage
 - Selecting another provider (e.g. Xiaomi) hides the badge
 - An unresolved model selection renders a neutral `Unknown` chip
 - Bilingual (Chinese / English), follows the UI locale; zero dependencies, no build step

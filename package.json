@@ -1,6 +1,6 @@
 {
   "name": "dsh-provider-peak",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "private": true,
   "description": "Provider-aware DeepSeek peak/off-peak badge for DSH: shows in the composer toolbar only when the selected model belongs to a DeepSeek provider.",
   "type": "module",
