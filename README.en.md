@@ -1,5 +1,7 @@
 # DeepSeek peak-hours badge (dsh-provider-peak)
 
+[![test](https://github.com/moonmoonCL/dsh-provider-peak/actions/workflows/test.yml/badge.svg)](https://github.com/moonmoonCL/dsh-provider-peak/actions/workflows/test.yml)
+
 *[中文](README.md) · English*
 
 A DSH (DeepSeek Harness) Web plugin. It renders a compact badge in the session composer toolbar showing whether the DeepSeek API is currently billed at **peak** or **off-peak** rates. The badge follows the model selected in the current Session and only appears when that model belongs to a DeepSeek provider.

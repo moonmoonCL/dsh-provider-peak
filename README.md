@@ -1,5 +1,7 @@
 # DeepSeek 峰谷提示（dsh-provider-peak）
 
+[![test](https://github.com/moonmoonCL/dsh-provider-peak/actions/workflows/test.yml/badge.svg)](https://github.com/moonmoonCL/dsh-provider-peak/actions/workflows/test.yml)
+
 DSH（DeepSeek Harness）Web 插件。在会话输入框工具栏常驻一枚小徽章，显示 DeepSeek API 当前按**高峰**还是**空闲**价计费；徽章跟随当前选中的模型，只有模型属于 DeepSeek 的 provider 时才出现。
 
 - `● 空闲`（绿点）：空闲时段，价格为高峰价的 5 折
