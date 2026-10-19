@@ -2,9 +2,9 @@
 
 ## 环境
 
-- 日期：2026-10-18
+- 日期：2026-10-18 ～ 2026-10-19
 - DSH：`0.2.0-rc.2`，`web` profile（macOS）
-- 安装方式：目录 `link:` 安装，插件由 Harness 的 HMR 直接加载
+- 安装方式：目录 `link:` 安装（开发期）→ GitHub 安装（发布后）
 
 ## 已验证
 
@@ -23,11 +23,21 @@
 | 安装与激活 | Harness 安装返回 `application: applied`，无警告 | 通过 |
 | 实时槽位注册 | 客户端 Inspect 查询 `conversation.input.left`，存在 occupant `dsh-provider-peak`（order 11，active） | 通过 |
 
+## 发布后验证（2026-10-19）
+
+| 项目 | 方法 | 结果 |
+| --- | --- | --- |
+| 仓库创建 | `gh repo create moonmoonCL/dsh-provider-peak --public --source=. --push` | 成功 |
+| GitHub 安装 | 在 `web` profile 中用插件安装器安装 `https://github.com/moonmoonCL/dsh-provider-peak` | `+ dsh-provider-peak github:moonmoonCL/dsh-provider-peak`，`application: applied` |
+| 安装内容 | 检查 `node_modules/dsh-provider-peak` | `client.js`、`index.js`、`cordis.patch.yml`、`icon.svg`、`locale/`、`docs/`、README、LICENSE 齐全 |
+| profile 记录 | 检查 profile 的 `package.json` 与插件列表 | 依赖为 `github:moonmoonCL/dsh-provider-peak`，插件行 `dsh-provider-peak` 已启用 |
+| 实时注册（GitHub 安装版） | 客户端 Inspect 查询 `conversation.input.left` | occupant 变为 `dsh-provider-peak`，active |
+
 ## 未验证 / 限制
 
 - **视觉未截图**：本环境没有浏览器控制能力，无法目测徽章尺寸、颜色与浅色/深色主题下的对比度；注册与模块加载已由实时 Inspect 确认。
-- **未在第二台机器或新 profile 上从 GitHub URL 端到端启动**：发布后如做了这一步，会补充在下方“发布后验证”。
 - **未覆盖其他 DSH 版本**：只在 `0.2.0-rc.2` 上验证。
+- **未在干净机器上从零安装**：GitHub 安装是在已有 DSH 安装的 profile 上完成的；`modelDirectories` 等依赖由 Harness 自带。
 
 ## 手工验证方法
 

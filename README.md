@@ -111,7 +111,7 @@ npm test
 
 ## 验证状态
 
-见 [docs/verification.md](docs/verification.md)：逻辑单测、安装与实时槽位注册已覆盖；视觉外观在无浏览器控制的环境下未截图验证。
+见 [docs/verification.md](docs/verification.md)：逻辑单测、目录安装与 GitHub 安装、实时槽位注册均已覆盖；视觉外观在无浏览器控制的环境下未截图验证。
 
 ## License
 

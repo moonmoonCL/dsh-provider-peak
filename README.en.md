@@ -113,7 +113,7 @@ Tests use `node:test` and extract the pure functions from the `// --- policy log
 
 ## Verification
 
-See [docs/verification.md](docs/verification.md). Unit tests, installation, and the live slot registration were verified; visual appearance has not been captured as a screenshot in a browser-controlled environment.
+See [docs/verification.md](docs/verification.md). Unit tests, directory and GitHub installation, and the live slot registration were verified; visual appearance has not been captured as a screenshot in a browser-controlled environment.
 
 ## License
 
