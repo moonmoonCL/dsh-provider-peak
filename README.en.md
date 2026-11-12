@@ -13,10 +13,20 @@ Two provider families publish the same two windows:
 
 - `● Off-peak` (green): off-peak hours, half of the peak rate
 - `● Peak` (amber): peak hours, standard rate
-- Hover or keyboard-focus the badge: it highlights and a tooltip opens with the provider, the current model, the per-1M-token peak/off-peak rates, time until the next switch, the switch instant (Beijing time), the rule, the holiday-data coverage, and Go's allowance warning
+- Hover or keyboard-focus the badge: it highlights and a tooltip opens with the provider, the current model, the per-1M-token peak/off-peak rates, time until the next switch, the switch instant (Beijing time), the rule, the holiday-data coverage, and Go's allowance warning. The tooltip hugs the badge, stays inside the window, and flips below the badge when there is not enough room above
 - Flat-rate models (GLM, Kimi, …) and the pay-as-you-go Console provider (`opencode`) hide the badge
 - An unresolved model selection renders a neutral `Unknown` chip
 - Bilingual (Chinese / English), follows the UI locale; zero dependencies, no build step
+
+## Screenshots
+
+The badge lives in the composer toolbar: amber `Peak`, green `Off-peak` — shown only when the selected model really splits by time of day.
+
+<img src="docs/images/badge.png" width="880" alt="The peak-hours badge in the composer toolbar, an amber dot with a Peak label">
+
+Hover it (or focus it with the keyboard) and a tooltip opens with the provider, the current model, the per-1M-token rates, the time until the next switch including the switch instant, and the full rule.
+
+<img src="docs/images/tooltip.png" width="880" alt="The badge tooltip listing the provider, model, rates, and peak/off-peak windows">
 
 ## Install
 
@@ -120,8 +130,9 @@ Refresh the page (directory install) or reinstall (GitHub install) after editing
 | `cordis.patch.yml` | Plugin row inserted on install |
 | `locale/{zh,en}.json` | Plugin-manager title and description |
 | `test/policy.test.mjs` | Schedule and provider/classification tests |
-| `test/render.test.mjs` | Renders the real component against a React stub and asserts the chip label and tooltip text |
+| `test/render.test.mjs` | Renders the real component against a React stub and asserts the chip label, the tooltip text, and that the tooltip is portaled and hidden until measured |
 | `docs/verification.md` | Verification record and limits |
+| `docs/images/{badge,tooltip}.png` | README screenshots |
 | `icon.svg` | Plugin icon |
 
 ## Develop and test
@@ -142,7 +153,7 @@ npm test
 
 ## Verification
 
-See [docs/verification.md](docs/verification.md). Unit tests, directory and GitHub installation, and the live slot registration were verified; visual appearance has not been captured as a screenshot in a browser-controlled environment.
+See [docs/verification.md](docs/verification.md). Unit tests, directory and GitHub installation, the live slot registration, and the tooltip placement against the host composer CSS (headless Chrome, before/after) were verified.
 
 ## License
 

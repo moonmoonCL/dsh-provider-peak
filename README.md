@@ -11,10 +11,20 @@ DSH（DeepSeek Harness）Web 插件。在会话输入框工具栏常驻一枚小
 
 - `● 空闲`（绿点）：空闲时段，价格为高峰价的 5 折
 - `● 高峰`（黄点）：高峰时段，按标准价计费
-- 悬停或键盘聚焦：徽章出现底色反馈，并弹出详情浮层（provider、当前模型、每百万 token 峰谷单价、距下次切换多久、切换时刻、计费规则、节假日数据覆盖年份、Go 的额度消耗提示）
+- 悬停或键盘聚焦：徽章出现底色反馈，并弹出详情浮层（provider、当前模型、每百万 token 峰谷单价、距下次切换多久、切换时刻、计费规则、节假日数据覆盖年份、Go 的额度消耗提示）；浮层贴着徽章、始终留在窗口内，窗口变窄时自动翻到徽章下方
 - 选中 GLM、Kimi 等单一价模型，或 Console 按量付费（`opencode`）等 provider：徽章自动隐藏
 - 模型信息尚未解析或加载失败：灰色 `未知`
 - 中英双语，跟随界面语言；零依赖、免构建，装上即用
+
+## 展示
+
+输入框工具栏里常驻的峰谷徽章：黄点 `高峰`、绿点 `空闲`，只在选中的模型确实按时段计价时出现。
+
+<img src="docs/images/badge.png" width="880" alt="输入框工具栏中的峰谷徽章，显示黄点与「高峰」">
+
+悬停或用键盘聚焦徽章，浮层给出 provider、当前模型、每百万 token 的峰谷单价、距下次切换的时长（含切换时刻），以及完整的计费规则。
+
+<img src="docs/images/tooltip.png" width="880" alt="悬停徽章后弹出的详情浮层，列出 provider、模型、单价与峰谷时段规则">
 
 ## 安装
 
@@ -106,6 +116,7 @@ const HOLIDAY_COVERAGE = '2026';
 | 高峰窗口 | `client.js` 的 `PEAK_WINDOWS` |
 | 节假日 | `client.js` 的 `HOLIDAY_RANGES` / `HOLIDAY_COVERAGE` |
 | 文案 | `client.js` 的 `DICT`（zh / en）；插件卡标题在 `locale/*.json` |
+| 浮层位置（边距、与徽章间距、上下翻转） | `client.js` 的 `VIEWPORT_MARGIN` / `ANCHOR_GAP` 与 `placementOf()` |
 
 修改后刷新页面（目录安装）或重新安装（GitHub 安装）。
 
@@ -118,8 +129,9 @@ const HOLIDAY_COVERAGE = '2026';
 | `cordis.patch.yml` | 安装时插入的插件行 |
 | `locale/{zh,en}.json` | 插件管理页的标题与描述 |
 | `test/policy.test.mjs` | 峰谷计算、provider/模型判定的单元测试 |
-| `test/render.test.mjs` | 用假 React 跑真实组件，断言徽章标签与浮层文案 |
+| `test/render.test.mjs` | 用假 React 跑真实组件，断言徽章标签、浮层文案，以及浮层被 portal 到 body 且测量前保持隐藏 |
 | `docs/verification.md` | 验证记录与限制 |
+| `docs/images/{badge,tooltip}.png` | README 展示截图 |
 | `icon.svg` | 插件图标 |
 
 ## 开发与测试
@@ -129,18 +141,19 @@ node --check client.js
 npm test
 ```
 
-`policy.test.mjs` 从 `client.js` 的 `// --- policy logic` 标记块中取出纯函数执行；`render.test.mjs` 则桩掉 `window.__ModuleLoader__` 与 React，真实渲染组件。两者都不需要浏览器。
+`policy.test.mjs` 从 `client.js` 的 `// --- policy logic` 标记块中取出纯函数执行（含浮层定位的 `placementOf`）；`render.test.mjs` 则桩掉 `window.__ModuleLoader__`、React 与 `react-dom`，真实渲染组件。两者都不需要浏览器。
 
 ## 兼容性
 
 - 在 DSH `0.2.0-rc.2` 上开发与验证。
 - 使用 Harness 自带能力：`conversation.input.left` 槽位、`ctx.modelDirectories` 服务、`ctx.locale`、`--dsw-alias-*` 主题 token。
-- 只引用主题 token，深浅色主题都跟随宿主；没有引用任何 Harness Client 包。
+- 只引用主题 token，深浅色主题都跟随宿主；除 `react` / `react-dom`（Harness 平台种子模块）外不引用任何包。
+- 详情浮层挂在 `document.body` 上并按窗口坐标定位：输入框所在的会话面板在会话激活后会成为 `position: fixed` 的包含块（`will-change: transform`），且会话视图会裁掉溢出内容，浮层留在这个子树里就会被挪位或截断。
 - DSH 若调整槽位名、模型目录服务或 locale API，需要跟着更新。
 
 ## 验证状态
 
-见 [docs/verification.md](docs/verification.md)：逻辑单测、目录安装与 GitHub 安装、实时槽位注册均已覆盖；视觉外观在无浏览器控制的环境下未截图验证。
+见 [docs/verification.md](docs/verification.md)：逻辑单测、目录安装与 GitHub 安装、实时槽位注册、浮层定位（真实宿主 CSS + 无头 Chrome，改前/改后对照）均已覆盖。
 
 ## License
 
