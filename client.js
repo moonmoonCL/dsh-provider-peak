@@ -437,22 +437,33 @@ window.__ModuleLoader__.load({
   box-sizing: border-box;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   height: 28px;
-  padding: 0 8px;
+  padding: 0 10px;
   border-radius: var(--dsw-radius-sm, 6px);
   color: var(--dsw-alias-label-secondary);
   font-size: 13px;
   font-weight: 500;
+  letter-spacing: 0.01em;
   line-height: 20px;
   white-space: nowrap;
   cursor: default;
   user-select: none;
-  transition: background-color 0.12s ease;
+  transition: background-color 0.16s cubic-bezier(0.2, 0, 0, 1);
 }
 .dsh-provider-peak:hover,
 .dsh-provider-peak:focus-visible,
 .dsh-provider-peak[data-open='true'] {
+  background: color-mix(in srgb, var(--dsw-alias-state-success-primary) 10%, transparent);
+}
+.dsh-provider-peak[data-state='peak']:hover,
+.dsh-provider-peak[data-state='peak']:focus-visible,
+.dsh-provider-peak[data-state='peak'][data-open='true'] {
+  background: color-mix(in srgb, var(--dsw-alias-state-warn-primary) 12%, transparent);
+}
+.dsh-provider-peak[data-state='unknown']:hover,
+.dsh-provider-peak[data-state='unknown']:focus-visible,
+.dsh-provider-peak[data-state='unknown'][data-open='true'] {
   background: color-mix(in srgb, var(--dsw-alias-label-secondary) 9%, transparent);
 }
 .dsh-provider-peak:focus-visible {
@@ -465,31 +476,86 @@ window.__ModuleLoader__.load({
   box-sizing: border-box;
   width: max-content;
   max-width: min(360px, calc(100vw - 24px));
-  padding: 10px 12px;
-  border: 0.5px solid var(--dsw-alias-border-l1);
+  padding: 13px 15px;
+  border: 0.5px solid var(--dsw-alias-border-l2, var(--dsw-alias-border-l1));
   border-radius: var(--dsw-radius-md, 8px);
-  background: var(--dsw-alias-bg-overlay);
+  /**
+   * Popovers in the host sit on a layered surface (bg-layer-*), not on
+   * bg-overlay: in the light theme bg-overlay resolves to a filled gray
+   * (neutral-bluish-150), which reads dull next to the white composer.
+   * bg-layer-3 is the most elevated layer (white in light, 800 in dark);
+   * older hosts without it fall back to the overlay token.
+   */
+  background: var(--dsw-alias-bg-layer-3, var(--dsw-alias-bg-overlay));
   box-shadow: var(--dsw-elevation-prominent, 0 8px 24px rgb(0 0 0 / 0.18));
-  color: var(--dsw-alias-label-secondary);
+  color: var(--dsw-alias-label-primary);
   font-size: 12px;
-  line-height: 18px;
+  line-height: 19px;
+  font-variant-numeric: tabular-nums;
   text-align: left;
   white-space: normal;
   pointer-events: none;
+  animation: dsw-provider-peak-tipIn 0.16s cubic-bezier(0.2, 0, 0, 1);
+}
+.dsh-provider-peak__tooltip[data-side='bottom'] {
+  animation-name: dsw-provider-peak-tipInBelow;
+}
+@keyframes dsw-provider-peak-tipIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes dsw-provider-peak-tipInBelow {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 .dsh-provider-peak__tipHead {
+  display: flex;
+  align-items: center;
+  gap: 7px;
   color: var(--dsw-alias-label-primary);
   font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.dsh-provider-peak__tipHead::before {
+  content: '';
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--dsw-alias-state-idle-primary);
+  transform: translateY(0.5px);
+}
+.dsh-provider-peak__tooltip[data-state='idle'] .dsh-provider-peak__tipHead::before {
+  background: var(--dsw-alias-state-success-primary);
+}
+.dsh-provider-peak__tooltip[data-state='peak'] .dsh-provider-peak__tipHead::before {
+  background: var(--dsw-alias-state-warn-primary);
+}
+.dsh-provider-peak__tooltip[data-state='unknown'] .dsh-provider-peak__tipHead::before {
+  background: var(--dsw-alias-state-idle-primary);
 }
 .dsh-provider-peak__tipRow {
-  margin-top: 2px;
+  margin-top: 4px;
 }
 .dsh-provider-peak__tipNotes {
-  margin-top: 8px;
-  padding-top: 7px;
+  margin-top: 10px;
+  padding-top: 8px;
   border-top: 0.5px solid var(--dsw-alias-border-l1);
+  color: var(--dsw-alias-label-secondary);
   font-size: 11px;
-  line-height: 16px;
+  line-height: 17px;
 }
 .dsh-provider-peak__dot {
   flex: none;
@@ -498,14 +564,35 @@ window.__ModuleLoader__.load({
   border-radius: 50%;
   background: var(--dsw-alias-state-success-primary);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--dsw-alias-state-success-primary) 18%, transparent);
+  transform: translateY(0.5px);
+  transition: background-color 0.3s ease, box-shadow 0.3s ease;
 }
 .dsh-provider-peak[data-state='peak'] .dsh-provider-peak__dot {
   background: var(--dsw-alias-state-warn-primary);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--dsw-alias-state-warn-primary) 18%, transparent);
+  animation: dsw-provider-peak-pulse 2.4s ease-in-out infinite;
 }
 .dsh-provider-peak[data-state='unknown'] .dsh-provider-peak__dot {
   background: var(--dsw-alias-state-idle-primary);
   box-shadow: none;
+  animation: none;
+}
+@keyframes dsw-provider-peak-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--dsw-alias-state-warn-primary) 18%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--dsw-alias-state-warn-primary) 8%, transparent);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dsh-provider-peak__tooltip {
+    animation: none;
+  }
+  .dsh-provider-peak[data-state='peak'] .dsh-provider-peak__dot {
+    animation: none;
+  }
 }
 .dsh-provider-peak__detail {
   position: absolute;
@@ -698,6 +785,9 @@ window.__ModuleLoader__.load({
                 key: 'tooltip',
                 ref: tipRef,
                 className: 'dsh-provider-peak__tooltip',
+                // The tooltip is portaled to document.body, so it cannot read
+                // the chip's data-state from an ancestor selector: carry it.
+                'data-state': chipState,
                 'data-side': placement === null ? undefined : placement.side,
                 'aria-hidden': true,
                 style: {

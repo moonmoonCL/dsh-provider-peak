@@ -152,3 +152,61 @@ const NEXT_CHANGE_HORIZON_DAYS = LONGEST_BREAK_DAYS + 8;   // 2026 表：9 + 8 =
 限制：
 
 - 视界推导只保证「比最长假期更远」，不是无限：若某年出现超过「最长区间 + 8 天」仍无边界的情况，仍会返回 `null`。当前规则下不会发生（最长假期 9 天，节后 1–3 天内必有工作日）。
+
+## 视觉升级：chip 与 tooltip 的动效与排版（2026-11-13）
+
+改动只落在 `client.js` 的 `CSS` 常量与 tooltip 的一个 `data-state` 属性，无逻辑变化。
+
+### 改动内容
+
+- chip：hover/打开态按状态着色（空闲绿 / 高峰琥珀 / 未知中性），过渡 0.16s `cubic-bezier(0.2,0,0,1)`；圆点增 0.3s 颜色过渡与 0.5px 光学居中；高峰圆点 2.4s 呼吸光环。
+- tooltip：进入动画 0.16s 淡入 + 4px 位移（按 `data-side` 分方向）；标题行加状态色圆点（经 `data-state` 属性传递，因 tooltip portal 到 `document.body`，祖先选择器不可用）；价格/时间数字 `font-variant-numeric: tabular-nums`；行高 19px、注释区 17px（适配中文）。
+- `prefers-reduced-motion: reduce` 下关闭全部动画。
+
+### 验证
+
+| 项目 | 方法 | 结果 |
+| --- | --- | --- |
+| 语法 / 单测 | `node --check client.js && npm test` | 31 项全部通过 |
+| 真实渲染 | 提取真实 `CSS` 构建静态预览页（本会话可视化目录），Chromium 截图后由视觉模型评审两轮 | 圆点居中、行高、层级、内边距通过；评审报告的「文字截断」经 `scrollHeight === clientHeight`（226/226、184/184）证伪，为演示页布局重叠的错觉 |
+| portal 后状态色 | 评审第一轮发现 `tipHead::before` 用祖先选择器取不到状态 → 改为 tooltip 自带 `data-state` | 预览页确认标题圆点颜色随状态变化 |
+| reduced-motion | CSS 媒体查询静态审查 | 动画全部禁用 |
+
+限制：
+
+- 未在真实 DSH 宿主里验证（不改运行中的 `dsh web`）；token 回退值用接近宿主暗色的模拟值代表。生产环境以宿主 `--dsw-*` 实际取值为准。
+
+## Tooltip 灰底修正：挂到宿主真实弹层 token（2026-11-13）
+
+用户在真实宿主（浅色主题）反馈 tooltip「灰不拉几」。取证与修正：
+
+### 取证
+
+读取宿主主题包 `@deepseek-ai/dsh-client-ui-theme/lib/client.js` 的真实定义（本机 `/opt/homebrew/lib/node_modules/@deepseek-ai/dsh/...`）：
+
+| token | 浅色值 | 暗色值 | 结论 |
+| --- | --- | --- | --- |
+| `--dsw-alias-bg-overlay` | neutral-bluish-150 = `#e9ecf2`（灰） | neutral-bluish-700 | 原选错了：不是弹层用的色，「灰」的来源 |
+| `--dsw-alias-bg-layer-3` | neutral-bluish-00 = `#fff` | neutral-bluish-800 = `#353638` | 宿主弹层（菜单/浮层）实际用的分层表面 |
+| `--dsw-alias-label-primary` | `#0f1115` | `#f9fafb` | 正文原来全挂 secondary（700/`#61666b`），偏灰 |
+| `--dsw-alias-label-secondary` | `#61666b` | `#cfd3d6` | 适合注释区，不适合正文数据行 |
+
+宿主 UI 包（conversation 等）的弹层样式确实引用 `bg-layer-1/3`，不用 `bg-overlay`。
+
+### 修正（client.js 仅 CSS 常量）
+
+- tooltip 背景：`var(--dsw-alias-bg-layer-3, var(--dsw-alias-bg-overlay))`——老宿主无 layer-3 时回落 overlay
+- tooltip 正文：`label-primary`；注释区固定 `label-secondary` 并去掉 0.88 透明度
+- tooltip 描边：`border-l2`（浅色 `#0000001a`），白底下轮廓更清楚
+
+### 验证
+
+| 项目 | 方法 | 结果 |
+| --- | --- | --- |
+| 语法 / 单测 | `node --check client.js && npm test` | 31 项全部通过 |
+| 视觉 | 演示页改挂宿主真实 token 值（含 layer-3），Chromium 截图复查 | 浅色 tooltip 白底 + primary 正文，与宿主弹层观感一致；暗色为 800 层面 |
+| 中途失误 | CSS 注释里写了反引号截断模板字符串 | `node --check` 抓住，已修复——确认该检查的必要性 |
+
+限制：
+
+- `bg-layer-3` 名字来自当前宿主版本的实现，非公开契约；已用 `var()` 回落链保证老版本不劣化。宿主若改 token 名，回落到 overlay 行为（灰但可用）。
