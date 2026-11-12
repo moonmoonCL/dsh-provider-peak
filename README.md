@@ -43,7 +43,7 @@ dsh plugin --profile web add dsh-provider-peak
 
 3. 安装后刷新页面。
 
-也可以安装 GitHub 上更新更快的版本，把包名换成仓库地址：
+仓库跟着 `main` 走，比 npm 版本更新；想装最新代码就把包名换成仓库地址：
 
 ```text
 https://github.com/moonmoonCL/dsh-provider-peak
