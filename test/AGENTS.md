@@ -12,7 +12,7 @@ Both files run under plain `node --test`. No third-party test framework, no jsdo
 
 | File | Cases | What it proves |
 | --- | --- | --- |
-| `policy.test.mjs` | 22 | Schedule math, provider/model classification, holiday handling, tooltip geometry — the pure functions only |
+| `policy.test.mjs` | 23 | Schedule math, provider/model classification, holiday handling, tooltip geometry — the pure functions only |
 | `render.test.mjs` | 8 | The component's chip label and tooltip content per provider family, and that the tooltip is portaled and hidden until measured |
 
 What they do **not** prove: anything interactive. See "the stub is inert" below.
@@ -123,7 +123,7 @@ import { isPeak } from '../client.js';            // fails: client.js is a brows
 - Classification or schedule change → add a row to the provider matrix in `policy.test.mjs`; assert chip state and, for Go, the rate pair. A new rate pair also needs a holiday-window case if the model is Go.
 - New tooltip field or wording → assert in `render.test.mjs` through the `t` key stub, and cover the unknown/unresolved case.
 - Geometry change → extend the `placementOf` cases (left/right clamp, flip below, taller than viewport) and keep the measured-width case.
-- Time-horizon change → remember the tooltip's countdown comes from `nextChange`, so a case near a holiday longer than 8 days (e.g. 2026-02-13) is the only thing that would catch the missing row.
+- Time-horizon change → the tooltip countdown comes from `nextChange`, whose horizon is derived from the longest holiday block. Keep the 2026-02-13/14 case: it is what fails if the horizon shrinks or a longer break is added without a matching case.
 - A change that needs a real browser (CSS containment, portal placement against host styles) cannot be asserted here; prove it another way and log it in [`docs/verification.md`](../docs/verification.md).
 
 ## Checklist

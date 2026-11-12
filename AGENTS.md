@@ -15,8 +15,8 @@ A DSH (DeepSeek Harness) Web **client** plugin: one badge in the session compose
 | Task | Command | ~Time | Notes |
 | --- | --- | --- | --- |
 | Syntax check | `node --check client.js` | <1s | also `node --check index.js`; both run in CI. **Cannot catch ESM syntax — see below** |
-| Test (all) | `npm test` | <1s | 30 `node:test` cases, no browser |
-| Test (one file) | `node --test test/policy.test.mjs` | <1s | 22 cases |
+| Test (all) | `npm test` | <1s | 31 `node:test` cases, no browser |
+| Test (one file) | `node --test test/policy.test.mjs` | <1s | 23 cases |
 | Test (matching cases) | `node --test --test-name-pattern="tooltip" test/render.test.mjs` | <1s | regex over case names, not a single case |
 | Package preview | `npm pack --dry-run` | ~1s | expect 13 files / ~229 kB, no tarball written |
 | Publish | `npm publish` | ~5s | `publishConfig` pins `registry.npmjs.org`; see the staging note below |
@@ -80,7 +80,7 @@ Consequences:
 
 ### Identifiers must agree in three places
 
-`NS = 'dsh-provider-peak'` (used for `ctx.locale.register(NS, DICT)` and the slot's `locale`), the slot `id`, and the row `id` in `cordis.patch.yml` all have to match. The render tests stub the locale, so breaking any of them leaves 30 green tests and a UI that prints raw keys.
+`NS = 'dsh-provider-peak'` (used for `ctx.locale.register(NS, DICT)` and the slot's `locale`), the slot `id`, and the row `id` in `cordis.patch.yml` all have to match. The render tests stub the locale, so breaking any of them leaves 31 green tests and a UI that prints raw keys.
 
 The component also declares `order: 12`, which positions it in the tool row; nothing tests that.
 
@@ -101,7 +101,7 @@ Two frozen policy objects (`DEEPSEEK_POLICY`, `OPENCODE_GO_POLICY`) carry the di
 Three silent-miss traps live here:
 
 - **Rates vs models.** Adding a model to `OPENCODE_GO_PEAK_MODELS` without adding it to `OPENCODE_GO_RATES` keeps the badge but silently drops the per-million price row (`ratesOf` returns `null`). No test covers the new pair.
-- **`nextChange` only scans 8 days** while the 2026 Spring Festival block is 9 days long. From 2026-02-13/14 it returns `null`, and the tooltip silently omits the "time until the next switch" row. Verified against the current code; extend the horizon or add a February case when touching holidays.
+- **`nextChange` can return `null`, which silently drops the countdown row.** Its horizon is derived (`LONGEST_BREAK_DAYS + 8`), so it follows a longer holiday table automatically; do not replace it with a fixed number. The regression case lives on 2026-02-13/14 (Spring Festival, 9 days): it is the only test that fails if the horizon shrinks again.
 - **`HOLIDAY_COVERAGE` is display-only.** A new year's table without bumping it shows the wrong coverage year in the tooltip, and nothing fails.
 
 ### Never restart the user's `dsh web` server
