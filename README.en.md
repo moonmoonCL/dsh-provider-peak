@@ -30,18 +30,36 @@ Hover it (or focus it with the keyboard) and a tooltip opens with the provider, 
 
 ## Install
 
+```sh
+dsh plugin --profile web add dsh-provider-peak
+```
+
 ### Plugin page (recommended)
 
 1. Open DSH Web.
-2. Go to **Settings → Plugins** and paste:
+2. Go to **Settings → Plugins** and paste the package name:
 
    ```text
-   https://github.com/moonmoonCL/dsh-provider-peak
+   dsh-provider-peak
    ```
 
 3. Refresh the page after installation.
 
+The GitHub repository tracks `main` and is a little ahead of releases; swap the package name for the URL to install it instead:
+
+```text
+https://github.com/moonmoonCL/dsh-provider-peak
+```
+
 ### CLI
+
+npm package:
+
+```sh
+dsh plugin --profile <profile> add dsh-provider-peak
+```
+
+Git repository (follows `main`, no release needed):
 
 ```sh
 dsh plugin --profile <profile> add https://github.com/moonmoonCL/dsh-provider-peak

@@ -28,18 +28,36 @@ DSH（DeepSeek Harness）Web 插件。在会话输入框工具栏常驻一枚小
 
 ## 安装
 
+```sh
+dsh plugin --profile web add dsh-provider-peak
+```
+
 ### 插件页（推荐）
 
 1. 打开 DSH Web。
-2. 进入 **设置 → 插件**，在安装框粘贴仓库地址：
+2. 进入 **设置 → 插件**，在安装框粘贴包名：
 
    ```text
-   https://github.com/moonmoonCL/dsh-provider-peak
+   dsh-provider-peak
    ```
 
 3. 安装后刷新页面。
 
+也可以安装 GitHub 上更新更快的版本，把包名换成仓库地址：
+
+```text
+https://github.com/moonmoonCL/dsh-provider-peak
+```
+
 ### 命令行
+
+npm 包：
+
+```sh
+dsh plugin --profile <profile> add dsh-provider-peak
+```
+
+Git 仓库（跟随 `main`，无需等发版）：
 
 ```sh
 dsh plugin --profile <profile> add https://github.com/moonmoonCL/dsh-provider-peak
