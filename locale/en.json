@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "DeepSeek peak-hours badge",
-    "description": "Shows in the composer toolbar whether the DeepSeek API is in peak or off-peak hours, only when the selected model belongs to a DeepSeek provider."
+    "title": "Peak-hours badge",
+    "description": "Shows in the composer toolbar whether the selected model is billed at peak or off-peak rates: DeepSeek's own API, and OpenCode Go's two DeepSeek models. Flat-rate models stay hidden."
   }
 }

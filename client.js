@@ -2,19 +2,26 @@
  * Client half of dsh-provider-peak.
  *
  * Shows a compact chip in the composer tool row (`conversation.input.left`)
- * that tells, at a glance, whether the DeepSeek API is currently billed at
+ * that tells, at a glance, whether the selected model is currently billed at
  * peak or off-peak rates. The chip stays short ("高峰" / "空闲"); the native
- * tooltip carries the details (model, next switch, rule, holiday coverage).
+ * tooltip carries the details (provider, model, rates, next switch, rule).
  *
- * The chip only appears when the Session's selected model belongs to a
- * DeepSeek provider. Selecting another provider hides it; an unresolved
- * selection renders a neutral "未知" chip instead of guessing.
+ * Two provider families publish a peak/off-peak split, and both use the same
+ * two windows:
+ *   - DeepSeek's own API (deepseek-official / deepseek-account, or a route
+ *     that names itself DeepSeek). Every model, with the Chinese statutory
+ *     holiday exemption.
+ *   - OpenCode Go (`opencode-go`), but only for its two DeepSeek models; Go
+ *     mirrors DeepSeek's windows and rates without a holiday exemption.
  *
- * Billing rule, from the official pricing page (api-docs.deepseek.com):
+ * Billing rule, from both pricing pages (api-docs.deepseek.com and
+ * opencode.ai/docs/console/go):
  *   Peak: Beijing time (UTC+8), Monday through Friday, 09:00-12:00 and
- *         14:00-18:00, excluding Chinese statutory holidays.
- *   Off-peak: every other instant (weekends and holidays in full), billed at
- *         half of the peak rate.
+ *         14:00-18:00.
+ *   Off-peak: every other instant, billed at half of the peak rate.
+ *   Holidays: DeepSeek's own API bills Chinese statutory holidays as
+ *         off-peak; OpenCode Go has no such exemption, so a weekday holiday
+ *         stays at peak rates.
  *
  * The holiday table is data, not logic: refresh it when the State Council
  * publishes the next year's arrangement.
@@ -72,6 +79,41 @@ window.__ModuleLoader__.load({
     const DEEPSEEK_PROVIDER_IDS = new Set(['deepseek-official', 'deepseek-account']);
     const DEEPSEEK_PROVIDER_NAME = /^deepseek(?:\s+(?:official|account))?$/i;
 
+    // OpenCode Go (opencode.ai/docs/console/go) publishes the same windows and
+    // a 2x peak multiplier, but no holiday exemption. Only two of its models
+    // carry a peak/off-peak split; the rest of the catalog is flat-rate, and
+    // the pay-as-you-go Console provider (`opencode`) bills DeepSeek flat too,
+    // so both stay out of the badge.
+    const OPENCODE_GO_PROVIDER_IDS = new Set(['opencode-go']);
+    const OPENCODE_GO_PROVIDER_NAME = /^opencode\s+go$/i;
+    const OPENCODE_GO_PEAK_MODELS = new Set(['deepseek-v4.1-flash', 'deepseek-v4-pro']);
+    const OPENCODE_GO_PEAK_MODEL_NAME = /^deepseek\s+v4(?:\.1\s+flash|\s+pro)(?:\s+[0-9][0-9.]*)?$/i;
+
+    // Peak rates per million tokens, as published on the Go pricing table.
+    // Input/output pairs only; the cache-read rate is a fixed fraction and is
+    // not worth a row in the tooltip.
+    const OPENCODE_GO_RATES = {
+      'deepseek-v4.1-flash': { peak: [0.3, 1.2], offPeak: [0.15, 0.6] },
+      'deepseek-v4-pro': { peak: [1.32, 3.96], offPeak: [0.66, 1.98] },
+    };
+
+    /**
+     * One billing policy: which provider family, whether Chinese statutory
+     * holidays count as off-peak, and the locale keys for its copy.
+     */
+    const DEEPSEEK_POLICY = Object.freeze({
+      id: 'deepseek',
+      holidaysExempt: true,
+      apiKey: 'api.deepseek',
+      rulesKey: 'rules.deepseek',
+    });
+    const OPENCODE_GO_POLICY = Object.freeze({
+      id: 'opencode-go',
+      holidaysExempt: false,
+      apiKey: 'api.opencodeGo',
+      rulesKey: 'rules.opencodeGo',
+    });
+
     function pad2(value) {
       return String(value).padStart(2, '0');
     }
@@ -112,26 +154,31 @@ window.__ModuleLoader__.load({
       return Math.floor((ms + BEIJING_OFFSET_MS) / DAY_MS);
     }
 
-    /** True when `ms` falls inside a billed peak window. */
-    function isPeak(ms) {
+    /** True when `ms` falls inside a billed peak window under `policy`. */
+    function isPeak(ms, policy = DEEPSEEK_POLICY) {
       const local = beijing(ms);
       if (local.weekday === 0 || local.weekday === 6) return false;
-      if (HOLIDAYS.has(dateKey(local.year, local.month, local.day))) return false;
+      if (
+        policy.holidaysExempt &&
+        HOLIDAYS.has(dateKey(local.year, local.month, local.day))
+      ) {
+        return false;
+      }
       return PEAK_WINDOWS.some(
         ([start, end]) => local.minutes >= start && local.minutes < end,
       );
     }
 
     /** First instant after `now` whose peak/off-peak state differs, or null. */
-    function nextChange(now) {
-      const current = isPeak(now);
+    function nextChange(now, policy = DEEPSEEK_POLICY) {
+      const current = isPeak(now, policy);
       const base = beijing(now);
       for (let day = 0; day <= 8; day += 1) {
         for (const minutes of BOUNDARY_MINUTES) {
           const at =
             Date.UTC(base.year, base.month - 1, base.day + day, 0, minutes) -
             BEIJING_OFFSET_MS;
-          if (at > now && isPeak(at) !== current) return at;
+          if (at > now && isPeak(at, policy) !== current) return at;
         }
       }
       return null;
@@ -160,13 +207,6 @@ window.__ModuleLoader__.load({
       };
     }
 
-    /** True when the selected provider route serves DeepSeek's own API. */
-    function isDeepSeekProvider(provider, groups) {
-      if (DEEPSEEK_PROVIDER_IDS.has(provider)) return true;
-      const group = groups.find((candidate) => candidate.id === provider);
-      return group !== undefined && DEEPSEEK_PROVIDER_NAME.test(group.name.trim());
-    }
-
     /** Catalog display name for the selected model, falling back to its id. */
     function modelNameOf(groups, selection) {
       const group = groups.find((candidate) => candidate.id === selection.provider);
@@ -175,6 +215,70 @@ window.__ModuleLoader__.load({
           ? undefined
           : group.models.find((candidate) => candidate.id === selection.model);
       return model === undefined ? selection.model : model.name;
+    }
+
+    /** The model id without a leading `<provider>/` qualifier, lowercased. */
+    function bareModelId(provider, model) {
+      const id = String(model).toLowerCase();
+      const prefix = `${String(provider).toLowerCase()}/`;
+      return id.startsWith(prefix) ? id.slice(prefix.length) : id;
+    }
+
+    /** Catalog entry for the selection, when the directory knows it. */
+    function modelEntryOf(groups, selection) {
+      const group = groups.find((candidate) => candidate.id === selection.provider);
+      return group === undefined
+        ? undefined
+        : group.models.find((candidate) => candidate.id === selection.model);
+    }
+
+    /** Provider family whose prices split into peak and off-peak, or null. */
+    function sourcePolicyOf(provider, groups) {
+      if (DEEPSEEK_PROVIDER_IDS.has(provider)) return DEEPSEEK_POLICY;
+      if (OPENCODE_GO_PROVIDER_IDS.has(provider)) return OPENCODE_GO_POLICY;
+      const group = groups.find((candidate) => candidate.id === provider);
+      const name = group === undefined ? '' : String(group.name).trim();
+      if (DEEPSEEK_PROVIDER_NAME.test(name)) return DEEPSEEK_POLICY;
+      if (OPENCODE_GO_PROVIDER_NAME.test(name)) return OPENCODE_GO_POLICY;
+      return null;
+    }
+
+    /**
+     * True when the model is one of the two DeepSeek models that Go bills with
+     * a peak/off-peak split. The id decides; the catalog name is a fallback
+     * for a renamed id and must not swallow the flat-rate `-free` variant.
+     */
+    function isOpencodeGoPeakModel(groups, selection) {
+      const bare = bareModelId(selection.provider, selection.model);
+      if (OPENCODE_GO_PEAK_MODELS.has(bare)) return true;
+      const entry = modelEntryOf(groups, selection);
+      return (
+        entry !== undefined &&
+        OPENCODE_GO_PEAK_MODEL_NAME.test(String(entry.name).trim())
+      );
+    }
+
+    /**
+     * The peak policy that governs the selection, or null when its provider is
+     * flat-rate: other providers, Go's non-DeepSeek models, and the flat-price
+     * Console (`opencode`) DeepSeek models all answer null.
+     */
+    function peakPolicyOf(selection, groups) {
+      const policy = sourcePolicyOf(selection.provider, groups);
+      if (policy === null) return null;
+      if (policy === DEEPSEEK_POLICY) return policy;
+      return isOpencodeGoPeakModel(groups, selection) ? policy : null;
+    }
+
+    /** Published input/output rates for a Go peak model, or null. */
+    function ratesOf(selection) {
+      const bare = bareModelId(selection.provider, selection.model);
+      return OPENCODE_GO_RATES[bare] === undefined ? null : OPENCODE_GO_RATES[bare];
+    }
+
+    /** Two-decimal money label for tooltip rates. */
+    function money(value) {
+      return value.toFixed(2);
     }
 
     // --- end policy logic ---
@@ -190,6 +294,8 @@ window.__ModuleLoader__.load({
         'model.line': '模型：{model}',
         'price.peak': '当前按高峰价计费',
         'price.idle': '当前为空闲价（高峰价的 5 折）',
+        'price.split':
+          '每百万 tokens：高峰 输入 {peakIn} / 输出 {peakOut}，空闲 输入 {offIn} / 输出 {offOut}',
         'next.toPeak': '距离进入高峰还有 {gap}（{when}，北京时间）',
         'next.toIdle': '距离进入空闲还有 {gap}（{when}，北京时间）',
         'gap.minutes': '{minutes} 分钟',
@@ -198,11 +304,16 @@ window.__ModuleLoader__.load({
         'when.today': '今天 {time}',
         'when.tomorrow': '明天 {time}',
         'when.date': '{month} 月 {day} 日 {time}',
-        rules:
+        'rules.deepseek':
           '高峰：周一至周五 09:00–12:00、14:00–18:00（北京时间，不含中国法定节假日）；其余时间为空闲。',
+        'rules.opencodeGo':
+          '高峰：周一至周五 09:00–12:00、14:00–18:00（北京时间）；周末与其余时间为空闲。官方未设中国法定节假日豁免，落在工作日的假期仍按高峰计价。',
+        'go.limit':
+          'Go 订阅按该价格从月限额扣减：高峰时同样用量的消耗是空闲时的 2 倍。',
         holidays: '法定节假日数据：{year} 年国务院办公厅安排',
         'unknown.detail': '无法确定当前模型的 provider，暂不判断峰谷时段。',
-        api: 'DeepSeek API',
+        'api.deepseek': 'DeepSeek API',
+        'api.opencodeGo': 'OpenCode Go',
       },
       en: {
         peak: 'Peak',
@@ -214,6 +325,8 @@ window.__ModuleLoader__.load({
         'model.line': 'Model: {model}',
         'price.peak': 'Billed at peak rates',
         'price.idle': 'Off-peak rate (half of peak)',
+        'price.split':
+          'Per 1M tokens: peak in {peakIn} / out {peakOut}; off-peak in {offIn} / out {offOut}',
         'next.toPeak': 'Peak starts in {gap} ({when}, Beijing time)',
         'next.toIdle': 'Off-peak starts in {gap} ({when}, Beijing time)',
         'gap.minutes': '{minutes} min',
@@ -222,12 +335,17 @@ window.__ModuleLoader__.load({
         'when.today': 'today {time}',
         'when.tomorrow': 'tomorrow {time}',
         'when.date': '{month}/{day} {time}',
-        rules:
+        'rules.deepseek':
           'Peak: Mon–Fri 09:00–12:00 and 14:00–18:00 Beijing time, excluding Chinese public holidays; all other hours are off-peak.',
+        'rules.opencodeGo':
+          'Peak: Mon–Fri 09:00–12:00 and 14:00–18:00 Beijing time; weekends and all other hours are off-peak. No Chinese public-holiday exemption, so a weekday holiday is still billed at peak rates.',
+        'go.limit':
+          'Go charges these rates against the monthly limit, so peak usage burns twice the allowance of the same volume off-peak.',
         holidays: 'Public-holiday data: {year} State Council schedule',
         'unknown.detail':
           "The current model's provider is unknown, so peak-hour status is unavailable.",
-        api: 'DeepSeek API',
+        'api.deepseek': 'DeepSeek API',
+        'api.opencodeGo': 'OpenCode Go',
       },
     };
 
@@ -378,10 +496,11 @@ window.__ModuleLoader__.load({
       }, [open]);
 
       const current = state.current;
-      const provider = current === null ? null : current.provider;
+      const policy = current === null ? null : peakPolicyOf(current, state.groups);
 
-      // Other providers do not bill DeepSeek's peak/off-peak rates: stay out.
-      if (provider !== null && !isDeepSeekProvider(provider, state.groups)) {
+      // Flat-rate routes (other providers, Go's non-DeepSeek models, the
+      // Console pay-as-you-go DeepSeek models) have nothing to report.
+      if (current !== null && policy === null) {
         return null;
       }
 
@@ -393,19 +512,30 @@ window.__ModuleLoader__.load({
       if (current === null) {
         chipState = 'unknown';
         label = t('unknown');
-        headline = `${t('api')} · ${t('state.unknown')}`;
+        headline = t('state.unknown');
         rows = [t('unknown.detail')];
         notes = [];
       } else {
-        const peak = isPeak(now);
+        const peak = isPeak(now, policy);
         chipState = peak ? 'peak' : 'idle';
         label = t(peak ? 'peak' : 'idle');
-        headline = `${t('api')} · ${t(peak ? 'state.peak' : 'state.idle')}`;
+        headline = `${t(policy.apiKey)} · ${t(peak ? 'state.peak' : 'state.idle')}`;
         rows = [
           t('model.line', { model: modelNameOf(state.groups, current) }),
-          t(peak ? 'price.peak' : 'price.idle'),
         ];
-        const target = nextChange(now);
+        const rates = policy === OPENCODE_GO_POLICY ? ratesOf(current) : null;
+        if (rates !== null) {
+          rows.push(
+            t('price.split', {
+              peakIn: money(rates.peak[0]),
+              peakOut: money(rates.peak[1]),
+              offIn: money(rates.offPeak[0]),
+              offOut: money(rates.offPeak[1]),
+            }),
+          );
+        }
+        rows.push(t(peak ? 'price.peak' : 'price.idle'));
+        const target = nextChange(now, policy);
         if (target !== null) {
           const gap = describeGap(target - now);
           const when = describeWhen(target, now);
@@ -416,7 +546,11 @@ window.__ModuleLoader__.load({
             }),
           );
         }
-        notes = [t('rules'), t('holidays', { year: HOLIDAY_COVERAGE })];
+        notes = [t(policy.rulesKey)];
+        if (policy.holidaysExempt) {
+          notes.push(t('holidays', { year: HOLIDAY_COVERAGE }));
+        }
+        if (policy === OPENCODE_GO_POLICY) notes.push(t('go.limit'));
       }
       const srDetail = [headline, ...rows, ...notes].join('\n');
 

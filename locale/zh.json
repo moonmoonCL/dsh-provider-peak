@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "DeepSeek 峰谷提示",
-    "description": "在输入框工具栏显示 DeepSeek API 当前处于高峰还是空闲时段；只在选中的模型属于 DeepSeek provider 时出现。"
+    "title": "峰谷时段提示",
+    "description": "在输入框工具栏显示当前模型的峰谷计价状态：DeepSeek 官方 API，以及 OpenCode Go 里分峰谷的两个 DeepSeek 模型；单一价模型自动隐藏。"
   }
 }

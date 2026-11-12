@@ -1,13 +1,18 @@
-# DeepSeek 峰谷提示（dsh-provider-peak）
+# 峰谷时段提示（dsh-provider-peak）
 
 [![test](https://github.com/moonmoonCL/dsh-provider-peak/actions/workflows/test.yml/badge.svg)](https://github.com/moonmoonCL/dsh-provider-peak/actions/workflows/test.yml)
 
-DSH（DeepSeek Harness）Web 插件。在会话输入框工具栏常驻一枚小徽章，显示 DeepSeek API 当前按**高峰**还是**空闲**价计费；徽章跟随当前选中的模型，只有模型属于 DeepSeek 的 provider 时才出现。
+DSH（DeepSeek Harness）Web 插件。在会话输入框工具栏常驻一枚小徽章，显示当前选中的模型是否按**高峰**价计费；徽章跟随当前选中的模型，只在价格确实分峰谷的 provider 上出现。
+
+支持两类封顶相同的峰谷价：
+
+- **DeepSeek 官方 API**（`deepseek-official` / `deepseek-account`，以及名称为 DeepSeek 的自建路由）：全部模型，工作日高峰、其余空闲，法定节假日按空闲。
+- **OpenCode Go**（`opencode-go`）：只有 `DeepSeek V4.1 Flash` 与 `DeepSeek V4 Pro` 两个模型分峰谷；窗口与 DeepSeek 相同，但官方没有法定节假日豁免（工作日假期仍按高峰）。Go 的其余模型（GLM、Kimi、Qwen、MiMo 等）是单一价，不显示徽章。
 
 - `● 空闲`（绿点）：空闲时段，价格为高峰价的 5 折
 - `● 高峰`（黄点）：高峰时段，按标准价计费
-- 悬停或键盘聚焦：徽章出现底色反馈，并弹出详情浮层（当前模型、距下次切换多久、切换时刻、计费规则、节假日数据覆盖年份）
-- 选中 Xiaomi 等其他 provider：徽章自动隐藏
+- 悬停或键盘聚焦：徽章出现底色反馈，并弹出详情浮层（provider、当前模型、每百万 token 峰谷单价、距下次切换多久、切换时刻、计费规则、节假日数据覆盖年份、Go 的额度消耗提示）
+- 选中 GLM、Kimi 等单一价模型，或 Console 按量付费（`opencode`）等 provider：徽章自动隐藏
 - 模型信息尚未解析或加载失败：灰色 `未知`
 - 中英双语，跟随界面语言；零依赖、免构建，装上即用
 
@@ -45,25 +50,44 @@ dsh plugin --profile web add /path/to/dsh-provider-peak
 
 | 时段 | 北京时间 | 价格 |
 | --- | --- | --- |
-| 高峰 | 周一至周五 09:00–12:00、14:00–18:00（不含中国法定节假日） | 标准价 |
-| 空闲 | 其余全部时间，含周末与法定节假日全天 | 高峰价的 50% |
+| 高峰 | 周一至周五 09:00–12:00、14:00–18:00 | 标准价 |
+| 空闲 | 其余全部时间，含周末全天 | 高峰价的 50% |
 
-规则与价格以 [DeepSeek 官方价格页](https://api-docs.deepseek.com/zh-cn/quick_start/pricing) 为准（核对于 2026-10-18）。
+两类 provider 的窗口与倍率相同，差在节假日：
+
+| provider | 工作日落在法定节假日 |
+| --- | --- |
+| DeepSeek 官方 API | 全天空闲 |
+| OpenCode Go | 仍按高峰计价（官方未设豁免） |
+
+规则与价格来源：[DeepSeek 官方价格页](https://api-docs.deepseek.com/zh-cn/quick_start/pricing)、[OpenCode Go 用量限额表](https://opencode.ai/docs/console/go/)（核对于 2026-11-12）。
+
+OpenCode Go 的峰谷单价（每百万 tokens，输入 / 输出）：
+
+| 模型 | 高峰 | 空闲 |
+| --- | --- | --- |
+| DeepSeek V4.1 Flash | $0.30 / $1.20 | $0.15 / $0.60 |
+| DeepSeek V4 Pro | $1.32 / $3.96 | $0.66 / $1.98 |
+
+Go 是订阅制，费用从月限额里扣：高峰时同样用量的消耗是空闲时的 2 倍。
 
 ## 哪些 provider 会显示
 
-| 选中的 provider | 徽章 |
+| 选中的 provider / 模型 | 徽章 |
 | --- | --- |
 | `deepseek-official` / `deepseek-account`（内置 DeepSeek） | `高峰` / `空闲` |
 | 名称为 `DeepSeek` 的 provider（如 pi-ai 里配置、指向 api.deepseek.com 的 `deepseek` 路由） | `高峰` / `空闲` |
-| 其他 provider（`xiaomi-token-plan-cn`、名称不是 DeepSeek 的第三方中转等） | 隐藏 |
+| `opencode-go` 且模型为 `deepseek-v4.1-flash` / `deepseek-v4-pro`（id 带不带 `opencode-go/` 前缀都认） | `高峰` / `空闲` |
+| `opencode-go` 的其他模型（GLM、Kimi、Qwen、MiMo、Grok 等，单一价） | 隐藏 |
+| `opencode`（Console 按量付费，DeepSeek 也是单一价） | 隐藏 |
+| 其他 provider（`xiaomi-token-plan-cn`、第三方中转等） | 隐藏 |
 | 模型信息尚未解析 / 加载失败 | `未知` |
 
-判定逻辑在 `client.js` 的 `DEEPSEEK_PROVIDER_IDS` 与 `DEEPSEEK_PROVIDER_NAME`。
+判定逻辑在 `client.js` 的 `DEEPSEEK_PROVIDER_IDS`、`OPENCODE_GO_PROVIDER_IDS`、`OPENCODE_GO_PEAK_MODELS`（以及对应的名称正则）里。
 
 ## 法定节假日
 
-内置 2026 年国务院办公厅公布的 7 段假期（元旦、春节、清明、劳动节、端午、中秋、国庆），落在工作日的假期会让当天全天空闲。2027 年安排通常在 2026 年 11 月公布，届时更新 `client.js`：
+内置 2026 年国务院办公厅公布的 7 段假期（元旦、春节、清明、劳动节、端午、中秋、国庆），落在工作日的假期会让当天全天空闲——这条只作用于 DeepSeek 官方 API；OpenCode Go 不使用该表，工作日假期照常高峰。2027 年安排通常在 2026 年 11 月公布，届时更新 `client.js`：
 
 ```js
 const HOLIDAY_RANGES = [/* ... */];
@@ -76,7 +100,9 @@ const HOLIDAY_COVERAGE = '2026';
 
 | 想改什么 | 位置 |
 | --- | --- |
-| provider 白名单 | `client.js` 的 `DEEPSEEK_PROVIDER_IDS` / `DEEPSEEK_PROVIDER_NAME` |
+| provider 白名单 | `client.js` 的 `DEEPSEEK_PROVIDER_IDS` / `DEEPSEEK_PROVIDER_NAME`、`OPENCODE_GO_PROVIDER_IDS` / `OPENCODE_GO_PROVIDER_NAME` |
+| Go 里哪些模型分峰谷 | `client.js` 的 `OPENCODE_GO_PEAK_MODELS`（及名称兜底 `OPENCODE_GO_PEAK_MODEL_NAME`） |
+| 浮层里的单价 | `client.js` 的 `OPENCODE_GO_RATES` |
 | 高峰窗口 | `client.js` 的 `PEAK_WINDOWS` |
 | 节假日 | `client.js` 的 `HOLIDAY_RANGES` / `HOLIDAY_COVERAGE` |
 | 文案 | `client.js` 的 `DICT`（zh / en）；插件卡标题在 `locale/*.json` |
@@ -91,7 +117,8 @@ const HOLIDAY_COVERAGE = '2026';
 | `index.js` | Host 端空插件（渲染全部在 Client） |
 | `cordis.patch.yml` | 安装时插入的插件行 |
 | `locale/{zh,en}.json` | 插件管理页的标题与描述 |
-| `test/policy.test.mjs` | 峰谷与 provider 判定的单元测试 |
+| `test/policy.test.mjs` | 峰谷计算、provider/模型判定的单元测试 |
+| `test/render.test.mjs` | 用假 React 跑真实组件，断言徽章标签与浮层文案 |
 | `docs/verification.md` | 验证记录与限制 |
 | `icon.svg` | 插件图标 |
 
@@ -102,7 +129,7 @@ node --check client.js
 npm test
 ```
 
-测试使用 `node:test`，从 `client.js` 的 `// --- policy logic` 标记块中取出纯函数执行，不依赖浏览器。
+`policy.test.mjs` 从 `client.js` 的 `// --- policy logic` 标记块中取出纯函数执行；`render.test.mjs` 则桩掉 `window.__ModuleLoader__` 与 React，真实渲染组件。两者都不需要浏览器。
 
 ## 兼容性
 
