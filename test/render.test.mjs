@@ -6,6 +6,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+/**
+ * Values handed to the component's `useState` calls, in call order, so a test
+ * can render the tooltip-open branch without a live React runtime.
+ */
+let statePlan = [];
+
 const fakeReact = {
   Fragment: Symbol('Fragment'),
   createElement: (type, props, ...children) => ({
@@ -13,27 +19,58 @@ const fakeReact = {
     props: { ...(props ?? {}), children },
   }),
   useSyncExternalStore: (_subscribe, getSnapshot) => getSnapshot(),
-  useState: (init) => [typeof init === 'function' ? init() : init, () => {}],
+  useState: (init) => {
+    const planned = statePlan.shift();
+    const value =
+      planned !== undefined
+        ? planned.value
+        : typeof init === 'function'
+          ? init()
+          : init;
+    return [value, () => {}];
+  },
   useRef: (init) => ({ current: init }),
   useEffect: () => {},
+  useLayoutEffect: () => {},
   useCallback: (fn) => fn,
   useId: () => 'test-id',
 };
 
+/** Portals are recorded instead of appended, so tests can inspect them. */
+const portalCalls = [];
+const fakeReactDom = {
+  createPortal: (children, container) => {
+    portalCalls.push({ container });
+    return { type: 'portal', props: { container, children: [children] } };
+  },
+};
+
 const requireStub = (id) => {
   if (id === 'react') return fakeReact;
+  if (id === 'react-dom') return fakeReactDom;
   throw new Error(`unexpected require: ${id}`);
 };
 
 let factory;
+globalThis.document = {
+  body: { nodeType: 1 },
+  visibilityState: 'visible',
+  addEventListener() {},
+  removeEventListener() {},
+};
 globalThis.window = {
   __ModuleLoader__: {
     load: (module) => {
       factory = module.factory;
     },
   },
+  innerWidth: 1200,
+  innerHeight: 800,
+  requestAnimationFrame() {},
+  cancelAnimationFrame() {},
+  addEventListener() {},
+  removeEventListener() {},
 };
-globalThis.document = { addEventListener() {}, removeEventListener() {} };
 
 await import('../client.js');
 
@@ -86,6 +123,22 @@ const directory = (current) => ({
   subscribe() {},
   getSnapshot: () => ({ current, groups, status: 'ready' }),
 });
+
+/**
+ * Render with the component's state pre-set: `now`, then `open`, then the
+ * `placement` the layout effect would have produced.
+ */
+function renderWith(plan, current, iso) {
+  const realNow = Date.now;
+  Date.now = () => Date.parse(iso);
+  statePlan = plan;
+  try {
+    return Badge({ t, modelDirectory: directory(current) });
+  } finally {
+    statePlan = [];
+    Date.now = realNow;
+  }
+}
 
 function render(current, iso) {
   const realNow = Date.now;
@@ -182,4 +235,64 @@ test('an unresolved selection renders the neutral 未知 chip', () => {
   assert.equal(chip.state, 'unknown');
   assert.equal(chip.label, 'unknown');
   assert.match(chip.detail, /unknown\.detail/);
+});
+
+test('the tooltip is portaled out of the composer, hidden until measured', () => {
+  portalCalls.length = 0;
+  const tree = render(
+    { provider: 'opencode-go', model: 'opencode-go/deepseek-v4.1-flash' },
+    PEAK,
+  );
+  // Closed: no tooltip at all — the details live in the visually hidden text.
+  assert.equal(
+    findAll(tree, (node) => node.props?.className === 'dsh-provider-peak__tooltip').length,
+    0,
+  );
+  assert.equal(portalCalls.length, 0, 'nothing is portaled while closed');
+});
+
+test('the open tooltip is portaled to the document, hidden until measured', () => {
+  portalCalls.length = 0;
+  const tree = renderWith(
+    [undefined, { value: true }, { value: null }],
+    { provider: 'opencode-go', model: 'opencode-go/deepseek-v4.1-flash' },
+    PEAK,
+  );
+  assert.equal(portalCalls.length, 1, 'the tooltip is portaled exactly once');
+  assert.equal(portalCalls[0].container, globalThis.document.body);
+
+  const [tooltip] = findAll(
+    tree,
+    (node) => node.props?.className === 'dsh-provider-peak__tooltip',
+  );
+  assert.ok(tooltip, 'the tooltip is rendered while open');
+  assert.equal(tooltip.props.style.visibility, 'hidden', 'hidden before measuring');
+  assert.equal(tooltip.props.style.left, '0px');
+  assert.equal(tooltip.props.style.top, '0px');
+
+  const [chip] = findAll(
+    tree,
+    (node) => node.props?.className === 'dsh-provider-peak',
+  );
+  assert.equal(
+    findAll(chip, (node) => node.props?.className === 'dsh-provider-peak__tooltip').length,
+    0,
+    'the tooltip is not nested inside the chip',
+  );
+});
+
+test('a measured tooltip is placed from the placement result', () => {
+  const tree = renderWith(
+    [undefined, { value: true }, { value: { left: 321, top: 210, side: 'top' } }],
+    { provider: 'opencode-go', model: 'opencode-go/deepseek-v4.1-flash' },
+    PEAK,
+  );
+  const [tooltip] = findAll(
+    tree,
+    (node) => node.props?.className === 'dsh-provider-peak__tooltip',
+  );
+  assert.equal(tooltip.props.style.visibility, 'visible');
+  assert.equal(tooltip.props.style.left, '321px');
+  assert.equal(tooltip.props.style.top, '210px');
+  assert.equal(tooltip.props['data-side'], 'top');
 });

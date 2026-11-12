@@ -10,7 +10,8 @@ assert.ok(start >= 0 && end > start, 'client.js must keep the policy logic marke
 const policy = new Function(
   `${source.slice(start, end)}\n` +
     'return { isPeak, nextChange, describeGap, describeWhen, peakPolicyOf, ' +
-    'ratesOf, money, modelNameOf, DEEPSEEK_POLICY, OPENCODE_GO_POLICY };',
+    'ratesOf, money, modelNameOf, placementOf, VIEWPORT_MARGIN, ANCHOR_GAP, ' +
+    'DEEPSEEK_POLICY, OPENCODE_GO_POLICY };',
 )();
 
 const instant = (iso) => Date.parse(iso);
@@ -280,4 +281,91 @@ test('a renamed id falls back to the catalog name, but not to the free variant',
     policy.peakPolicyOf(selection('opencode-go', 'deepseek-v41-flash-free'), groups),
     null,
   );
+});
+
+// --- tooltip geometry -------------------------------------------------------
+
+/** A chip rect, built from its top-left corner; the chip is 55x28. */
+const chipAt = (left, top) => ({
+  left,
+  top,
+  right: left + 55,
+  bottom: top + 28,
+  width: 55,
+  height: 28,
+});
+
+const viewportOf = (width, height) => ({ width, height });
+
+test('tooltip opens above the chip, left-aligned with it', () => {
+  const placement = policy.placementOf(
+    chipAt(300, 600),
+    { width: 360, height: 200 },
+    viewportOf(1200, 800),
+  );
+  assert.deepEqual(placement, { left: 300, top: 600 - 8 - 200, side: 'top' });
+});
+
+test('tooltip keeps the chip gap and stays inside the viewport edges', () => {
+  const narrow = policy.placementOf(
+    chipAt(2, 600),
+    { width: 360, height: 200 },
+    viewportOf(1200, 800),
+  );
+  assert.equal(narrow.left, policy.VIEWPORT_MARGIN, 'left edge margin');
+
+  const wide = policy.placementOf(
+    chipAt(1000, 600),
+    { width: 360, height: 200 },
+    viewportOf(1200, 800),
+  );
+  assert.equal(wide.left, 1200 - 12 - 360, 'right edge margin');
+
+  const nearBottom = policy.placementOf(
+    chipAt(300, 100),
+    { width: 200, height: 200 },
+    viewportOf(1200, 200),
+  );
+  assert.equal(nearBottom.top, policy.VIEWPORT_MARGIN, 'top edge margin');
+});
+
+test('the clamp uses the measured tooltip width, not an assumed maximum', () => {
+  // A 300px tooltip hugging the right edge has 88px of slack, not 28px: the
+  // old code reserved a fixed 360px and pushed the box needlessly left.
+  const placement = policy.placementOf(
+    chipAt(600, 400),
+    { width: 300, height: 100 },
+    viewportOf(700, 600),
+  );
+  assert.equal(placement.left, 700 - 12 - 300);
+});
+
+test('tooltip flips below the chip when the top edge is too close', () => {
+  const placement = policy.placementOf(
+    chipAt(300, 100),
+    { width: 360, height: 300 },
+    viewportOf(1200, 800),
+  );
+  assert.equal(placement.side, 'bottom');
+  assert.equal(placement.top, 100 + 28 + 8);
+});
+
+test('a tooltip taller than the window is clamped, never pushed off-screen', () => {
+  const placement = policy.placementOf(
+    chipAt(300, 260),
+    { width: 360, height: 480 },
+    viewportOf(1200, 300),
+  );
+  assert.equal(placement.top, policy.VIEWPORT_MARGIN);
+  assert.equal(placement.left, 300);
+});
+
+test('a tooltip wider than the window is narrowed to the margins', () => {
+  const placement = policy.placementOf(
+    chipAt(10, 200),
+    { width: 900, height: 100 },
+    viewportOf(320, 600),
+  );
+  assert.equal(placement.left, policy.VIEWPORT_MARGIN);
+  assert.equal(placement.top, 200 - 8 - 100);
 });

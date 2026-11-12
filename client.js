@@ -6,6 +6,15 @@
  * peak or off-peak rates. The chip stays short ("高峰" / "空闲"); the native
  * tooltip carries the details (provider, model, rates, next switch, rule).
  *
+ * The tooltip is portaled to `document.body` and pinned in viewport
+ * coordinates. It cannot be a plain `position: fixed` child of the composer:
+ * the composer seat is composited (`will-change: transform`) while a
+ * conversation is active, which silently turns that seat into the containing
+ * block for fixed descendants, and the conversation view clips its overflow.
+ * Portaling also keeps the position independent of any later reflow, which is
+ * why the tooltip re-measures the chip while it is open instead of trusting a
+ * snapshot taken at hover time.
+ *
  * Two provider families publish a peak/off-peak split, and both use the same
  * two windows:
  *   - DeepSeek's own API (deepseek-official / deepseek-account, or a route
@@ -33,10 +42,32 @@ window.__ModuleLoader__.load({
     const React = require('react');
     const h = React.createElement;
 
+    /**
+     * `react-dom` is a platform module of the DSH client shell — the composer
+     * itself portals its menus with it. The tooltip needs it to escape the
+     * composer subtree; without it the tooltip still renders, just in place.
+     */
+    const createPortal = (() => {
+      try {
+        const dom = require('react-dom');
+        return typeof dom.createPortal === 'function' ? dom.createPortal : null;
+      } catch {
+        return null;
+      }
+    })();
+
     /** Locale namespace owned by this plugin. */
     const NS = 'dsh-provider-peak';
     /** Recompute cadence: the visible text changes at most once a minute. */
     const TICK_MS = 30 * 1000;
+    /**
+     * Re-anchor cadence while the tooltip is open. A reflow (the window, a
+     * side panel, or the model picker changing width) fires neither `resize`
+     * nor `scroll`, so an open tooltip also samples its anchor on a frame
+     * timer — ten times a second is enough to stay glued without costing a
+     * layout per frame.
+     */
+    const FOLLOW_MS = 100;
 
     // --- policy logic (pure; kept free of React so tests can extract it) ---
 
@@ -281,6 +312,46 @@ window.__ModuleLoader__.load({
       return value.toFixed(2);
     }
 
+    // --- tooltip geometry (pure) ---
+
+    /** Smallest distance the tooltip keeps from a viewport edge. */
+    const VIEWPORT_MARGIN = 12;
+    /** Gap between the chip and the tooltip. */
+    const ANCHOR_GAP = 8;
+
+    function clampBetween(value, min, max) {
+      return Math.min(Math.max(value, min), Math.max(min, max));
+    }
+
+    /**
+     * Viewport coordinates for a tooltip anchored to `anchor`.
+     *
+     * `anchor` and `viewport` are rects in viewport space (the shape
+     * `getBoundingClientRect` and `window.innerWidth`/`innerHeight` provide);
+     * `tip` carries the tooltip's measured size. The tooltip opens above the
+     * chip when it fits — the composer sits at the bottom of the window — and
+     * flips below when the top edge is too close; either way both axes are
+     * clamped so a short window or a wide tooltip never ends up off-screen.
+     */
+    function placementOf(anchor, tip, viewport) {
+      const margin = VIEWPORT_MARGIN;
+      const width = Math.max(0, Math.min(tip.width, viewport.width - margin * 2));
+      const height = Math.max(0, Math.min(tip.height, viewport.height - margin * 2));
+      const left = clampBetween(anchor.left, margin, viewport.width - margin - width);
+      const roomAbove = anchor.top - ANCHOR_GAP - margin;
+      const roomBelow =
+        viewport.height - margin - (anchor.bottom + ANCHOR_GAP);
+      const side = roomAbove >= height || roomAbove >= roomBelow ? 'top' : 'bottom';
+      const top = clampBetween(
+        side === 'top' ? anchor.top - ANCHOR_GAP - height : anchor.bottom + ANCHOR_GAP,
+        margin,
+        viewport.height - margin - height,
+      );
+      return { left, top, side };
+    }
+
+    // --- end tooltip geometry logic ---
+
     // --- end policy logic ---
 
     const DICT = {
@@ -439,6 +510,20 @@ window.__ModuleLoader__.load({
 `;
 
     /**
+     * Render `node` at the end of the document, outside the composer.
+     *
+     * The composer seat becomes the containing block for fixed descendants as
+     * soon as it is composited for the sticky header (`will-change`), and the
+     * conversation view clips its overflow, so a fixed tooltip inside the tree
+     * would be placed against the seat and cropped. Portaling removes both
+     * couplings: `placementOf` already works in viewport coordinates.
+     */
+    function atDocumentLevel(node) {
+      if (createPortal === null || document.body === null) return node;
+      return createPortal(node, document.body);
+    }
+
+    /**
      * Compact peak/off-peak chip. Model identity comes from the Session's
      * shared model directory; the clock is read locally with a slow tick and
      * a refresh on tab focus. Hovering or focusing the chip opens a positioned
@@ -457,6 +542,7 @@ window.__ModuleLoader__.load({
       const [placement, setPlacement] = React.useState(null);
       const detailId = React.useId();
       const chipRef = React.useRef(null);
+      const tipRef = React.useRef(null);
 
       React.useEffect(() => {
         const refresh = () => setNow(Date.now());
@@ -471,29 +557,64 @@ window.__ModuleLoader__.load({
         };
       }, []);
 
-      const show = React.useCallback(() => {
+      /** Measure the chip and the tooltip, then pin the tooltip to the chip. */
+      const place = React.useCallback(() => {
         const chip = chipRef.current;
-        if (chip === null) return;
-        const rect = chip.getBoundingClientRect();
-        const maxWidth = Math.min(360, window.innerWidth - 24);
-        setPlacement({
-          left: Math.max(12, Math.min(rect.left, window.innerWidth - maxWidth - 12)),
-          bottom: window.innerHeight - rect.top + 8,
+        const tip = tipRef.current;
+        if (chip === null || tip === null) return;
+        const anchor = chip.getBoundingClientRect();
+        const box = tip.getBoundingClientRect();
+        const next = placementOf(anchor, box, {
+          width: window.innerWidth,
+          height: window.innerHeight,
         });
+        setPlacement((previous) =>
+          previous !== null &&
+          previous.left === next.left &&
+          previous.top === next.top &&
+          previous.side === next.side
+            ? previous
+            : next,
+        );
+      }, []);
+
+      // Measure before the first paint: the tooltip mounts hidden at the
+      // origin, so it must never be painted at the origin.
+      React.useLayoutEffect(() => {
+        if (open) place();
+      }, [open, place]);
+
+      // Keep the tooltip glued to the chip while it is open. Scrolling and
+      // resizing reposition it instead of dismissing it, and the frame timer
+      // covers the reflows that fire neither event — the window, the side
+      // panels, and the model picker all move the chip without moving the
+      // window.
+      React.useEffect(() => {
+        if (!open) return undefined;
+        const follow = () => place();
+        window.addEventListener('resize', follow);
+        window.addEventListener('scroll', follow, true);
+        let frame = 0;
+        let last = 0;
+        const sample = (time) => {
+          frame = window.requestAnimationFrame(sample);
+          if (time - last < FOLLOW_MS) return;
+          last = time;
+          place();
+        };
+        frame = window.requestAnimationFrame(sample);
+        return () => {
+          window.removeEventListener('resize', follow);
+          window.removeEventListener('scroll', follow, true);
+          window.cancelAnimationFrame(frame);
+        };
+      }, [open, place]);
+
+      const show = React.useCallback(() => {
+        setPlacement(null);
         setOpen(true);
       }, []);
       const hide = React.useCallback(() => setOpen(false), []);
-
-      React.useEffect(() => {
-        if (!open) return undefined;
-        const close = () => setOpen(false);
-        window.addEventListener('resize', close);
-        window.addEventListener('scroll', close, true);
-        return () => {
-          window.removeEventListener('resize', close);
-          window.removeEventListener('scroll', close, true);
-        };
-      }, [open]);
 
       const current = state.current;
       const policy = current === null ? null : peakPolicyOf(current, state.groups);
@@ -554,6 +675,50 @@ window.__ModuleLoader__.load({
       }
       const srDetail = [headline, ...rows, ...notes].join('\n');
 
+      // Mounted hidden until measured: the first frame exists only so the
+      // layout effect above can read the tooltip's real size.
+      const tooltip =
+        open === false
+          ? null
+          : h(
+              'div',
+              {
+                key: 'tooltip',
+                ref: tipRef,
+                className: 'dsh-provider-peak__tooltip',
+                'data-side': placement === null ? undefined : placement.side,
+                'aria-hidden': true,
+                style: {
+                  left: `${placement === null ? 0 : placement.left}px`,
+                  top: `${placement === null ? 0 : placement.top}px`,
+                  visibility: placement === null ? 'hidden' : 'visible',
+                },
+              },
+              [
+                h(
+                  'div',
+                  { key: 'head', className: 'dsh-provider-peak__tipHead' },
+                  headline,
+                ),
+                ...rows.map((row, index) =>
+                  h(
+                    'div',
+                    { key: `row-${index}`, className: 'dsh-provider-peak__tipRow' },
+                    row,
+                  ),
+                ),
+                notes.length === 0
+                  ? null
+                  : h(
+                      'div',
+                      { key: 'notes', className: 'dsh-provider-peak__tipNotes' },
+                      notes.map((note, index) =>
+                        h('div', { key: `note-${index}` }, note),
+                      ),
+                    ),
+              ],
+            );
+
       return h(
         React.Fragment,
         null,
@@ -584,43 +749,7 @@ window.__ModuleLoader__.load({
             srDetail.replace(/\n/g, ' '),
           ),
         ),
-        open && placement !== null
-          ? h(
-              'div',
-              {
-                key: 'tooltip',
-                className: 'dsh-provider-peak__tooltip',
-                'aria-hidden': true,
-                style: {
-                  left: `${placement.left}px`,
-                  bottom: `${placement.bottom}px`,
-                },
-              },
-              [
-                h(
-                  'div',
-                  { key: 'head', className: 'dsh-provider-peak__tipHead' },
-                  headline,
-                ),
-                ...rows.map((row, index) =>
-                  h(
-                    'div',
-                    { key: `row-${index}`, className: 'dsh-provider-peak__tipRow' },
-                    row,
-                  ),
-                ),
-                notes.length === 0
-                  ? null
-                  : h(
-                      'div',
-                      { key: 'notes', className: 'dsh-provider-peak__tipNotes' },
-                      notes.map((note, index) =>
-                        h('div', { key: `note-${index}` }, note),
-                      ),
-                    ),
-              ],
-            )
-          : null,
+        tooltip === null ? null : atDocumentLevel(tooltip),
       );
     }
 

@@ -1,6 +1,6 @@
 {
   "name": "dsh-provider-peak",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "private": true,
   "description": "Provider-aware peak/off-peak badge for DSH: shows in the composer toolbar only when the selected model is billed with a peak/off-peak split (DeepSeek's own API, or OpenCode Go's two DeepSeek models).",
   "type": "module",

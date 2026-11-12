@@ -65,3 +65,49 @@
 - 未在真实浏览器里目测新浮层（本环境无浏览器控制）；渲染断言覆盖的是标签与文本内容，不含尺寸与配色。
 - 未能把改动装进运行中的 `web` profile（profile 目录在会话工作区之外，写入被沙箱拒绝）。要在界面上看到新徽章，需按下面任一方式更新安装。
 - Go 的峰时判定沿用北京时间整点窗口；跨 04:00/10:00 UTC 边界的请求按哪一端计价，官方未公开。
+
+## 浮层错位修复（2026-11-12）
+
+### 现象
+
+同一枚徽章，悬停弹出的详情浮层有时贴着徽章（正确），有时跑到窗口右侧、离徽章几百像素（错误）。两张截图都是 2 倍像素密度（徽章圆点 7 CSS px → 14 设备 px），即 CSS 视口分别是 670×312 与 865×295。
+
+### 定位过程
+
+| 步骤 | 方法 | 结论 |
+| --- | --- | --- |
+| 量截图 | 无头 Chrome 解码 JPEG，按颜色取包围盒 | 错误图的浮层 x=298、宽 360、右边缘距窗口右沿 12px——正好等于旧代码的右边界夹取 `innerWidth - 360 - 12`（670−372=298）；竖直方向与徽章的间距仍是 8px |
+| 查宿主 CSS | 读 `dsh-client-ui-conversation/lib/client.js` 的 `css$4` | 会话激活时 `.wSkVaW_composerSeat` 带 `will-change: transform`（还会 `position: sticky`），`.wSkVaW_root[data-phase=active]` 是 `overflow: hidden` |
+| 验证包含块 | 无头 Chrome 最小用例：`#outer{will-change:transform}` 内的 `position:fixed` 子元素 | 确认被劫持：`left:10px` 的子元素渲染在 `outer.left + 10`；`contain: layout`、`backdrop-filter`、`transform` 同样成立；`container-type: inline-size` 不成立 |
+| 复现旧行为 | 用宿主真实 `css$4`/`css$1` + 插件 CSS 搭出输入框，面板左边距 300px 模拟侧栏 | 旧代码：徽章 x=476、浮层 x=776，**偏移量正好等于面板偏移 300px**，且浮层右边缘 1136 > 视口 980，被推出窗口外；面板改成 40px 后旧代码仍差 203px（因为它只在悬停那一刻量一次） |
+| 同一用例跑新代码 | 同上 | 两次都是 `dx=0`、间距 8px、完全在窗口内 |
+
+根因两条，叠在一起就是"有时对有时错"：
+
+1. **坐标系错**：浮层是输入框子树里的 `position: fixed`。会话一旦进入激活态，输入框所在的 `composerSeat` 因为 `will-change: transform` 成为 fixed 后代的包含块，但代码用的是视口坐标（`getBoundingClientRect` + `window.innerWidth`），于是浮层被整体平移了"面板距窗口左沿"的距离；同时会话视图 `overflow: hidden` 会把浮层裁掉。面板恰好在视口原点时（例如单栏铺满、无侧栏）偏移为 0，看起来就是"对"的。
+2. **测量是一次性的**：`show()` 只在悬停那一刻量一次徽章位置，之后窗口/侧栏/宽度手柄引起的回流既不发 `resize` 也不发 `scroll`，浮层就停在旧位置；夹取用的还是"假设浮层正好 360px 宽"，不是实测宽度。
+
+### 修复
+
+`client.js`：
+
+- 浮层改用 `react-dom` 的 `createPortal` 挂到 `document.body`（`react-dom` 是 Harness 平台种子模块，输入框自己的菜单也用它），坐标系回到视口，不再被包含块劫持，也不会被会话视图裁剪。
+- 新增纯函数 `placementOf(anchor, tip, viewport)`：按实测的浮层尺寸夹取，12px 边距、8px 间距，上方放不下就翻到下方，窗口比浮层还矮时也保证留在窗口内。
+- 打开时先以 `visibility: hidden` 挂载，在 `useLayoutEffect` 里量完再显示，首帧不会闪到左上角。
+- 打开期间持续跟随：`resize` / `scroll` 立即重算，另有 100ms 的帧定时采样，覆盖不触发这两个事件的回流；`placement` 未变化时不触发重渲染。
+- 顺带修掉：旧代码在 `scroll`/`resize` 时直接关闭浮层，现在改为跟着走。
+
+### 验证
+
+| 项目 | 方法 | 结果 |
+| --- | --- | --- |
+| 单元测试 | `npm test`（30 项，其中浮层几何 6 项、浮层渲染 2 项） | 通过 |
+| 定位几何 | `test/policy.test.mjs` 覆盖：贴左/贴右夹取、翻到下方、超高夹取、超宽收窄、按实测宽度而非 360 固定值夹取 | 通过 |
+| 渲染结构 | `test/render.test.mjs`：浮层只 portal 到 `document.body` 一次、测量前 `visibility: hidden`、不在徽章子树里、测量后套用 `left/top/side` | 通过 |
+| 真实 CSS 复现 | 无头 Chrome（157）+ 宿主真实 `css$4` / `css$1`，面板偏移 300px 与回流到 40px 两种场景 | 旧代码偏差 300px / 203px 且溢出窗口；新代码两次都 `dx=0`、间距 8px、完全在窗口内 |
+| 截图对照 | `?mode=old` / `?mode=new` 同页面对照 | 旧：浮层在窗口右侧被裁；新：浮层正上方贴住徽章 |
+
+限制：
+
+- 未在真实 Harness 会话里用鼠标复现（没有 `dsh web` 的登录 cookie），对照是在能跑宿主真实 CSS 的本地页面里做的；几何与包含块机制是同一套浏览器行为。
+- 帧定时采样带来每 100ms 两次 `getBoundingClientRect`，只在浮层打开期间运行。
