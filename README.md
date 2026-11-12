@@ -1,6 +1,7 @@
 # 峰谷时段提示（dsh-provider-peak）
 
 [![test](https://github.com/moonmoonCL/dsh-provider-peak/actions/workflows/test.yml/badge.svg)](https://github.com/moonmoonCL/dsh-provider-peak/actions/workflows/test.yml)
+[![npm](https://img.shields.io/npm/v/dsh-provider-peak.svg)](https://www.npmjs.com/package/dsh-provider-peak)
 
 DSH（DeepSeek Harness）Web 插件。在会话输入框工具栏常驻一枚小徽章，显示当前选中的模型是否按**高峰**价计费；徽章跟随当前选中的模型，只在价格确实分峰谷的 provider 上出现。
 

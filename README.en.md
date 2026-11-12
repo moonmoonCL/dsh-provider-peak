@@ -1,6 +1,7 @@
 # Peak-hours badge (dsh-provider-peak)
 
 [![test](https://github.com/moonmoonCL/dsh-provider-peak/actions/workflows/test.yml/badge.svg)](https://github.com/moonmoonCL/dsh-provider-peak/actions/workflows/test.yml)
+[![npm](https://img.shields.io/npm/v/dsh-provider-peak.svg)](https://www.npmjs.com/package/dsh-provider-peak)
 
 *[中文](README.md) · English*
 
