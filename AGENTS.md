@@ -129,7 +129,7 @@ It is the process serving the GUI the user is talking to. Client-side changes re
 | Dev loop | `dsh plugin --profile web add /abs/path/to/repo` (a `link:`; edit and refresh) |
 | Check installed version | `node -e "console.log(require('$HOME/.dsh/profiles/web/node_modules/dsh-provider-peak/package.json').version)"` |
 
-`dsh plugin` forwards its arguments verbatim to pnpm inside `~/.dsh/profiles/<name>`. `publishConfig` keeps publishes on the public registry even when the machine default is a read-only mirror (npmmirror); `npm deprecate` does **not** honour `publishConfig` and needs `--registry=https://registry.npmjs.org` plus a web auth flow.
+`dsh plugin` forwards its arguments verbatim to pnpm inside `~/.dsh/profiles/<name>`. `publishConfig` keeps `npm publish` on the public registry even when the machine default is a read-only mirror (npmmirror), but `npm stage` and `npm deprecate` ignore it and hit the default: pass `--registry=https://registry.npmjs.org` or they fail with a 404 on `/-/stage` or a 401. Both also need a browser auth flow, so expect `EOTP` and hand off the OTP step to the user; `npm stage publish` itself needs no 2FA.
 
 ## Distribution status
 
