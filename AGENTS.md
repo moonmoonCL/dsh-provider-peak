@@ -18,7 +18,7 @@ A DSH (DeepSeek Harness) Web **client** plugin: one badge in the session compose
 | Test (all) | `npm test` | <1s | 31 `node:test` cases, no browser |
 | Test (one file) | `node --test test/policy.test.mjs` | <1s | 23 cases |
 | Test (matching cases) | `node --test --test-name-pattern="tooltip" test/render.test.mjs` | <1s | regex over case names, not a single case |
-| Package preview | `npm pack --dry-run` | ~1s | expect 13 files / ~229 kB, no tarball written |
+| Package preview | `npm pack --dry-run` | ~1s | expect 14 files / ~460 kB, no tarball written |
 | Publish | `npm publish` | ~5s | `publishConfig` pins `registry.npmjs.org`; see the staging note below |
 
 CI (`.github/workflows/test.yml`) runs only the two `node --check` calls and `npm test`. If a change cannot be verified by those, prove it another way and record how in `docs/verification.md`.
