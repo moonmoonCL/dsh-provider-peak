@@ -36,7 +36,7 @@ CI (`.github/workflows/test.yml`) runs only the two `node --check` calls and `np
 | `test/policy.test.mjs` | Slices the pure block out of `client.js` and exercises it |
 | `test/render.test.mjs` | Renders the real component against stubbed React/ReactDOM |
 | `docs/verification.md` | Verification log — **Chinese**, append a new dated `##` section; older counts in it are stale |
-| `docs/images/{badge,tooltip}.png` | README screenshots |
+| `docs/images/{peak,off-peak,tooltip}.png` | README screenshots; the two chip shots are paired at 1690x520 |
 | `README.md` / `README.en.md` | User-facing docs, must stay in step with each other |
 | `icon.svg` | Plugin icon |
 

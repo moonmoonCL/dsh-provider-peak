@@ -21,9 +21,12 @@ Two provider families publish the same two windows:
 
 ## Screenshots
 
-The badge lives in the composer toolbar: amber `Peak`, green `Off-peak` — shown only when the selected model really splits by time of day.
+The badge lives in the composer toolbar: amber `Peak` bills the standard rate, green `Off-peak` bills half — shown only when the selected model really splits by time of day.
 
-<img src="docs/images/badge.png" width="880" alt="The peak-hours badge in the composer toolbar, an amber dot with a Peak label">
+<p>
+  <img src="docs/images/peak.png" width="49%" alt="The badge in peak hours: an amber dot with a Peak label">
+  <img src="docs/images/off-peak.png" width="49%" alt="The badge in off-peak hours: a green dot with an Off-peak label">
+</p>
 
 Hover it (or focus it with the keyboard) and a tooltip opens with the provider, the current model, the per-1M-token rates, the time until the next switch including the switch instant, and the full rule.
 
