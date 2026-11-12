@@ -132,6 +132,26 @@ test('DeepSeek holiday boundary drives the next switch', () => {
   );
 });
 
+test('the countdown survives a break longer than a week', () => {
+  // Spring Festival 2026 runs 9 days (02-15..02-23). A fixed 8-day scan
+  // returned null here, which drops the countdown row from the tooltip.
+  assert.equal(
+    asIso(policy.nextChange(instant('2026-02-13T10:30:00Z'), deepseek)),
+    '2026-02-24T01:00:00.000Z',
+    'Friday 18:30 before the break waits for the first workday after it',
+  );
+  assert.equal(
+    asIso(policy.nextChange(instant('2026-02-14T02:00:00Z'), deepseek)),
+    '2026-02-24T01:00:00.000Z',
+    'a Saturday inside the break still finds the far side',
+  );
+  assert.equal(
+    asIso(policy.nextChange(instant('2026-02-13T10:30:00Z'), go)),
+    '2026-02-16T01:00:00.000Z',
+    'Go has no holiday exemption, so it resumes inside the break',
+  );
+});
+
 test('remaining-time and switch-time descriptions', () => {
   const now = instant('2026-10-18T15:11:00Z');
   const next = policy.nextChange(now);

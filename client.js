@@ -102,6 +102,18 @@ window.__ModuleLoader__.load({
     ];
     const HOLIDAY_COVERAGE = '2026';
 
+    // How many days ahead `nextChange` looks. A break longer than this would
+    // make it return null, which silently drops the countdown row from the
+    // tooltip, so the horizon is derived from the longest published break plus
+    // a week instead of being a fixed number: a longer schedule adapts without
+    // touching this. With no table at all it stays a week.
+    const LONGEST_BREAK_DAYS = HOLIDAY_RANGES.reduce((longest, [from, to]) => {
+      const span =
+        (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / DAY_MS;
+      return Math.max(longest, Math.round(span) + 1);
+    }, 0);
+    const NEXT_CHANGE_HORIZON_DAYS = LONGEST_BREAK_DAYS + 8;
+
     // Provider routes that serve DeepSeek's own API: the two built-in routes
     // (official key and DeepSeek account) plus a user-configured route that
     // names itself DeepSeek, such as a pi-ai profile pointing at
@@ -204,7 +216,7 @@ window.__ModuleLoader__.load({
     function nextChange(now, policy = DEEPSEEK_POLICY) {
       const current = isPeak(now, policy);
       const base = beijing(now);
-      for (let day = 0; day <= 8; day += 1) {
+      for (let day = 0; day <= NEXT_CHANGE_HORIZON_DAYS; day += 1) {
         for (const minutes of BOUNDARY_MINUTES) {
           const at =
             Date.UTC(base.year, base.month - 1, base.day + day, 0, minutes) -
