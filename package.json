@@ -8,6 +8,9 @@
   "engines": {
     "dsh": ">=0.2.0-rc.2"
   },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/"
+  },
   "keywords": [
     "dsh",
     "dsh-plugin",
